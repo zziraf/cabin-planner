@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;
 .canvas-shell{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
 .canvas-viewport{flex:1;min-height:0;overflow:hidden;background:#070907;position:relative;display:flex;align-items:center;justify-content:center;}
 .canvas-inner{display:inline-block;line-height:0;}
-.canvas-wrap{position:relative;border:1px solid var(--border-light);background:var(--surface);}
+.canvas-wrap{position:relative;border:1px solid var(--border-light);background:var(--surface);overflow:visible;}
 canvas{position:absolute;top:0;left:0;}
 canvas#main{position:relative;z-index:3;}
 
@@ -676,6 +676,8 @@ canvas#main{position:relative;z-index:3;}
 let PARCEL_W = 37, PARCEL_H = 27;
 let PARCEL_AREA = PARCEL_W * PARCEL_H;
 let _dynPX = 22;        // pixels per meter — updated dynamically by fitToViewport
+let _parcelOffX = 0;    // parcel origin offset in px (due to road on left/top)
+let _parcelOffY = 0;
 const PX = 22;          // initial value (used before first fit)
 const CELL = 0.5;
 let CW = PARCEL_W * _dynPX;
@@ -706,6 +708,24 @@ const snap = v => Math.round(v / CELL) * CELL;
 // ══════════════════════════════════════════
 let activeTool = 'tree';
 let roadSide = 'left';   // top | bottom | left | right | none
+const ROAD_M = 1;        // road width in meters
+
+// Returns {offX, offY} in pixels — parcel origin offset due to road
+function roadOffset(){
+  const rw = m2p(ROAD_M);
+  if(roadSide==='left')   return {ox:rw, oy:0};
+  if(roadSide==='top')    return {ox:0,  oy:rw};
+  if(roadSide==='right')  return {ox:0,  oy:0};
+  if(roadSide==='bottom') return {ox:0,  oy:0};
+  return {ox:0, oy:0};
+}
+// Extra canvas size needed for road
+function roadExtra(){
+  const rw = m2p(ROAD_M);
+  if(roadSide==='left'||roadSide==='right')  return {ew:rw, eh:0};
+  if(roadSide==='top'||roadSide==='bottom')  return {ew:0,  eh:rw};
+  return {ew:0, eh:0};
+}
 let northAngle = -45;    // degrees, 0=up, -45=NW
 let treeMode = 'keep';   // keep | mark | delete
 let drawMode = 'free';   // free | cell
@@ -754,24 +774,32 @@ function drawGrid(){
   gCtx.fillStyle='#0c0e0a'; gCtx.fillRect(0,0,CW,CH);
 
   // clip parcel
-  gCtx.save(); parcelPath(gCtx); gCtx.clip();
+  gCtx.save();
+  gCtx.translate(_parcelOffX, _parcelOffY);
+  parcelPath(gCtx); gCtx.clip();
 
-  // 0.5m grid
+  // 0.5m grid — starts from parcel origin
   gCtx.strokeStyle='rgba(168,184,100,0.28)'; gCtx.lineWidth=0.6;
-  for(let x=0;x<=CW;x+=m2p(CELL)){line(gCtx,x,0,x,CH);}
-  for(let y=0;y<=CH;y+=m2p(CELL)){line(gCtx,0,y,CW,y);}
+  for(let x=_parcelOffX;x<=_parcelOffX+m2p(PARCEL_W)+1;x+=m2p(CELL)){line(gCtx,x,0,x,CH);}
+  for(let y=_parcelOffY;y<=_parcelOffY+m2p(PARCEL_H)+1;y+=m2p(CELL)){line(gCtx,0,y,CW,y);}
 
   // 5m grid
   gCtx.strokeStyle='rgba(168,184,100,0.45)'; gCtx.lineWidth=0.9;
-  for(let x=0;x<=CW;x+=m2p(5)){line(gCtx,x,0,x,CH);}
-  for(let y=0;y<=CH;y+=m2p(5)){line(gCtx,0,y,CW,y);}
+  for(let x=_parcelOffX;x<=_parcelOffX+m2p(PARCEL_W)+1;x+=m2p(5)){line(gCtx,x,0,x,CH);}
+  for(let y=_parcelOffY;y<=_parcelOffY+m2p(PARCEL_H)+1;y+=m2p(5)){line(gCtx,0,y,CW,y);}
 
   gCtx.restore();
 
-  // Parcel border
-  gCtx.save(); parcelPath(gCtx);
-  gCtx.strokeStyle='#a8b864'; gCtx.lineWidth=1.6;
-  gCtx.shadowColor='rgba(168,184,100,0.35)'; gCtx.shadowBlur=7;
+  drawRoad();
+  drawCompass();
+  drawScaleBar();
+
+  // Parcel border — desenat DUPĂ drum ca să nu fie acoperit
+  gCtx.save();
+  gCtx.translate(_parcelOffX, _parcelOffY);
+  parcelPath(gCtx);
+  gCtx.strokeStyle='#a8b864'; gCtx.lineWidth=2;
+  gCtx.shadowColor='rgba(168,184,100,0.5)'; gCtx.shadowBlur=8;
   gCtx.stroke(); gCtx.restore();
 
   // Axis labels — mai mari, Y pe dreapta
@@ -780,34 +808,49 @@ function drawGrid(){
   gCtx.fillStyle='rgba(180,220,120,0.95)';
   gCtx.textAlign='center'; gCtx.textBaseline='bottom';
   for(let i=0;i<=PARCEL_W;i+=5){
-    const px=m2p(i);
-    // Fundal mic
+    const px=_parcelOffX+m2p(i);
     gCtx.fillStyle='rgba(10,12,8,0.7)'; gCtx.fillRect(px-14,CH-14,28,13);
     gCtx.fillStyle='rgba(180,220,120,0.95)'; gCtx.fillText(i+'m',px,CH-2);
   }
   // Y — dreapta
   gCtx.textAlign='left'; gCtx.textBaseline='middle';
   for(let i=0;i<=PARCEL_H;i+=5){
-    const py=m2p(i);
+    const py=_parcelOffY+m2p(i);
     gCtx.fillStyle='rgba(10,12,8,0.7)'; gCtx.fillRect(CW-32,py-7,30,13);
     gCtx.fillStyle='rgba(180,220,120,0.95)'; gCtx.fillText(i+'m',CW-30,py);
   }
   gCtx.textAlign='left'; gCtx.textBaseline='alphabetic';
 
-  drawRoad(); drawCompass(); drawScaleBar();
 }
 
 function drawRoad(){
   if(!roadSide || roadSide==='none') return;
   gCtx.save();
-  const rw = m2p(1); // road width in px
-  let rx=0,ry=0,rw2=rw,rh2=CH, cx=rw/2,cy=CH/2, dashX1=rw/2,dashY1=0,dashX2=rw/2,dashY2=CH, rot=0;
-  if(roadSide==='top')    { rx=0;ry=0;rw2=CW;rh2=rw; cx=CW/2;cy=rw/2; dashX1=0;dashY1=rw/2;dashX2=CW;dashY2=rw/2; rot=0; }
-  if(roadSide==='bottom') { rx=0;ry=CH-rw;rw2=CW;rh2=rw; cx=CW/2;cy=CH-rw/2; dashX1=0;dashY1=CH-rw/2;dashX2=CW;dashY2=CH-rw/2; }
-  if(roadSide==='left')   { rx=0;ry=0;rw2=rw;rh2=CH; cx=rw/2;cy=CH/2; dashX1=rw/2;dashY1=0;dashX2=rw/2;dashY2=CH; }
-  if(roadSide==='right')  { rx=CW-rw;ry=0;rw2=rw;rh2=CH; cx=CW-rw/2;cy=CH/2; dashX1=CW-rw/2;dashY1=0;dashX2=CW-rw/2;dashY2=CH; }
+  const rw = Math.round(ROAD_M * _dynPX); // road width in px
+  // Drumul ocupă banda de la marginea canvas-ului, parcela e offset-ată înăuntru
+  let rx=0, ry=0, rw2=0, rh2=0, dashX1=0, dashY1=0, dashX2=0, dashY2=0;
+  if(roadSide==='left'){
+    rx=0; ry=0; rw2=rw; rh2=CH;
+    dashX1=rw/2; dashY1=0; dashX2=rw/2; dashY2=CH;
+  }
+  if(roadSide==='right'){
+    rx=CW-rw; ry=0; rw2=rw; rh2=CH;
+    dashX1=CW-rw/2; dashY1=0; dashX2=CW-rw/2; dashY2=CH;
+  }
+  if(roadSide==='top'){
+    rx=0; ry=0; rw2=CW; rh2=rw;
+    dashX1=0; dashY1=rw/2; dashX2=CW; dashY2=rw/2;
+  }
+  if(roadSide==='bottom'){
+    rx=0; ry=CH-rw; rw2=CW; rh2=rw;
+    dashX1=0; dashY1=CH-rw/2; dashX2=CW; dashY2=CH-rw/2;
+  }
+  // Fundal drum
   gCtx.fillStyle='#141c0e'; gCtx.fillRect(rx,ry,rw2,rh2);
-  gCtx.strokeStyle='#2a3a1c'; gCtx.lineWidth=1; gCtx.strokeRect(rx,ry,rw2,rh2);
+  // Bordura exterioară a drumului (marginea canvas-ului)
+  gCtx.strokeStyle='#3a4a2a'; gCtx.lineWidth=1.5;
+  gCtx.strokeRect(rx,ry,rw2,rh2);
+  // Linie de mijloc punctată
   gCtx.strokeStyle='#2e4020'; gCtx.lineWidth=0.7; gCtx.setLineDash([10,14]);
   line(gCtx,dashX1,dashY1,dashX2,dashY2);
   gCtx.setLineDash([]);
@@ -855,8 +898,7 @@ function drawCompass(){
 
 function drawScaleBar(){
   const bar=m2p(5);
-  // Pozitionata jos-stanga, deasupra etichetelor X
-  const x=m2p(1)+4, y=CH-22;
+  const x=_parcelOffX+m2p(1)+4, y=CH-22;
   gCtx.save();
   // Fundal
   gCtx.fillStyle='rgba(10,12,8,0.75)';
@@ -875,7 +917,9 @@ function drawScaleBar(){
 
 function drawTerrain(){
   tCtx.clearRect(0,0,CW,CH);
-  tCtx.save(); parcelPath(tCtx); tCtx.clip();
+  tCtx.save();
+  tCtx.translate(_parcelOffX, _parcelOffY);
+  parcelPath(tCtx); tCtx.clip();
   const g=tCtx.createLinearGradient(0,0,CW,CH);
   g.addColorStop(0,'rgba(255,255,220,0.02)');
   g.addColorStop(0.6,'rgba(0,0,0,0)');
@@ -889,7 +933,9 @@ function drawTerrain(){
 // ══════════════════════════════════════════
 function draw(){
   mCtx.clearRect(0,0,CW,CH);
-  mCtx.save(); parcelPath(mCtx); mCtx.clip();
+  mCtx.save();
+  mCtx.translate(_parcelOffX, _parcelOffY); // offset for road
+  parcelPath(mCtx); mCtx.clip();
 
   // Cell-painted areas
   drawCells();
@@ -1190,18 +1236,27 @@ function fitToViewport(){
   const vw = canvasViewport.clientWidth  - 2;
   const vh = canvasViewport.clientHeight - 2;
   if(vw < 50 || vh < 50) return;
-  // Compute new PX so plan fills available space
-  const newPX = Math.min(vw / PARCEL_W, vh / PARCEL_H);
-  CW = Math.round(PARCEL_W * newPX);
-  CH = Math.round(PARCEL_H * newPX);
+  // Road extra space (in meters) reduces available area for parcel
+  const roadExtraW = (roadSide==='left'||roadSide==='right')  ? ROAD_M : 0;
+  const roadExtraH = (roadSide==='top' ||roadSide==='bottom') ? ROAD_M : 0;
+  // Fit parcel into remaining space
+  const newPX = Math.min(vw / (PARCEL_W + roadExtraW), vh / (PARCEL_H + roadExtraH));
+  const rw = Math.round(ROAD_M * newPX);
+  // Canvas size = parcel + road strip
+  CW = Math.round(PARCEL_W * newPX) + (roadSide==='left'||roadSide==='right'  ? rw : 0);
+  CH = Math.round(PARCEL_H * newPX) + (roadSide==='top' ||roadSide==='bottom' ? rw : 0);
+  // Parcel origin offset in px
+  const ox = roadSide==='left'  ? rw : 0;
+  const oy = roadSide==='top'   ? rw : 0;
+  _parcelOffX = ox;
+  _parcelOffY = oy;
   // Resize all 3 canvases
   [gridC, terrC, mainC].forEach(c => { c.width = CW; c.height = CH; });
   wrap.style.width  = CW + 'px';
   wrap.style.height = CH + 'px';
-  // Update derived globals
-  PARCEL_PX = PARCEL_M.map(p => ({x: p.x * newPX, y: p.y * newPX}));
-  // Patch m2p/p2m in place (reassign via closure trick — see CONFIG)
+  // Update derived globals — parcel coords offset by road
   _dynPX = newPX;
+  PARCEL_PX = PARCEL_M.map(p => ({x: p.x * newPX, y: p.y * newPX}));
   drawGrid();
   drawTerrain();
   draw();
@@ -1212,7 +1267,7 @@ new ResizeObserver(() => {
 }).observe(canvasViewport);
 
 function snapM(pos){return{x:snap(pos.x),y:snap(pos.y)};}
-function canvasToM(cx,cy){return{x:cx/_dynPX, y:cy/_dynPX};}
+function canvasToM(cx,cy){return{x:(cx-_parcelOffX)/_dynPX, y:(cy-_parcelOffY)/_dynPX};}
 function getPos(e){
   const r=mainC.getBoundingClientRect();
   return canvasToM(e.clientX-r.left, e.clientY-r.top);
@@ -1737,9 +1792,9 @@ function applyParcelConfig(){
   const newNorth = parseFloat(document.getElementById('cfg-north').value);
   if(!isNaN(newNorth)){ northAngle=newNorth; drawGrid(); }
   // Apply parcel shape from editor if drawn
-  if(peFinished && pePoints.length>2){
+  if(peFinished && peSegs.length>=3){
     applyParcelFromEditor();
-  } else if(pePoints.length===0){
+  } else {
     // No shape drawn — keep existing parcel, just update name/north
     drawGrid(); draw();
   }
@@ -1848,195 +1903,343 @@ function previewNorth(deg){
 }
 
 // ══════════════════════════════════════════
-// PARCEL EDITOR
-// ══════════════════════════════════════════
-// ══════════════════════════════════════════
-// PARCEL EDITOR — view 100% stabil
-// ══════════════════════════════════════════
-// ══════════════════════════════════════════
-// PARCEL EDITOR — schematic, fără proporții
-// Coordonate interne în px canvas. Lungimile în metri sunt metadata.
+// PARCEL EDITOR — math-based, proportional
+// State = segments [{len, angle}] in meters/radians
+// Preview is computed purely from math, not from pixel positions
+// Drag vertices to adjust angles; click segments to edit lengths
 // ══════════════════════════════════════════
 const PE_W = 420, PE_H = 240;
+const PE_PAD = 28; // padding inside canvas
 
 // ── State ──
-let pePoints   = [];   // [{cx,cy}] px în canvas
-let peLengths  = [];   // metri per segment
-let peFinished = false;
-let peSelSeg   = null;
-let peDragVtx  = null;
-let peMDownPos = null;
-let peHover    = null; // {cx,cy}
+// peSegs: array of {len (m), angle (rad absolute)}
+// First segment always starts at angle=0 (right), user can rotate whole shape
+// peFinished: bool — polygon closed
+// peBaseAngle: rotation of entire shape (rad)
+let peSegs      = [];    // [{len, angle}]
+let peFinished  = false;
+let peSelSeg    = null;
+let peDragVtx   = null;  // index of vertex being dragged
+let peDragStart = null;  // {cx,cy} mouse start of drag
+let peHover     = null;
+let pePhase     = 'draw'; // 'draw' | 'done'
+let peFirstPt   = null;   // {cx,cy} px — first vertex placed by first click
+let peScale     = 10;     // px per meter, updated as segments are added
 
-// ── Snap H/V ──
-function peSnapHV(cx, cy, refPt) {
-  if (!refPt) return {cx, cy};
-  const dx = Math.abs(cx - refPt.cx), dy = Math.abs(cy - refPt.cy);
-  const thr = 14;
-  if (dy < thr && dx > dy) return {cx, cy: refPt.cy};
-  if (dx < thr && dy > dx) return {cx: refPt.cx, cy};
-  return {cx, cy};
+// ── Snap angle to nearest 90° if within threshold ──
+function peSnapAngle(angle, thrDeg=5) {
+  const thr = thrDeg * Math.PI / 180;
+  const snaps = [0, Math.PI/2, Math.PI, -Math.PI/2, -Math.PI, Math.PI*2, -Math.PI*2];
+  for (const sa of snaps) {
+    if (Math.abs(angle - sa) < thr) return sa;
+  }
+  return angle;
 }
 
-// ── Hit tests ──
-function peHitVtx(cx, cy) {
-  for (let i = 0; i < pePoints.length; i++) {
-    const p = pePoints[i];
-    if (Math.hypot(cx-p.cx, cy-p.cy) < 11) return i;
+// ── Returns canvas px position of the last placed vertex ──
+function peGetLastPxPt() {
+  if (peSegs.length === 0) return peFirstPt || null;
+  const coords = peComputeCoords();
+  const pxPts  = peScaleToCanvas(coords);
+  return pxPts[pxPts.length - 1] || null;
+}
+
+// ── Compute real XY coords from segments ──
+// Returns array of {x,y} in meters, starting at (0,0)
+function peComputeCoords() {
+  const pts = [{x:0, y:0}];
+  let x = 0, y = 0;
+  for (const seg of peSegs) {
+    x += seg.len * Math.cos(seg.angle);
+    y += seg.len * Math.sin(seg.angle);
+    pts.push({x, y});
+  }
+  return pts; // last point = "closing point" (may not equal first if not closed)
+}
+
+// ── Scale coords to canvas px with padding ──
+function peScaleToCanvas(coords) {
+  if (coords.length < 2) return coords.map(()=>({cx:PE_W/2, cy:PE_H/2}));
+  const xs = coords.map(p=>p.x), ys = coords.map(p=>p.y);
+  const minX=Math.min(...xs), maxX=Math.max(...xs);
+  const minY=Math.min(...ys), maxY=Math.max(...ys);
+  const rangeX = maxX-minX || 1, rangeY = maxY-minY || 1;
+  const scaleX = (PE_W - PE_PAD*2) / rangeX;
+  const scaleY = (PE_H - PE_PAD*2) / rangeY;
+  const scale  = Math.min(scaleX, scaleY);
+  // Center
+  const offX = PE_PAD + ((PE_W - PE_PAD*2) - rangeX*scale) / 2 - minX*scale;
+  const offY = PE_PAD + ((PE_H - PE_PAD*2) - rangeY*scale) / 2 - minY*scale;
+  return coords.map(p=>({ cx: offX + p.x*scale, cy: offY + p.y*scale, _scale: scale }));
+}
+
+// ── Closure gap in meters ──
+function peClosureGap() {
+  if (peSegs.length < 2) return null;
+  const coords = peComputeCoords();
+  const last = coords[coords.length-1];
+  return Math.hypot(last.x, last.y); // distance from last point back to origin
+}
+
+// ── Hit tests on canvas coords ──
+function peHitVtxPx(cx, cy, pxPts) {
+  for (let i = 0; i < pxPts.length; i++) {
+    if (Math.hypot(cx-pxPts[i].cx, cy-pxPts[i].cy) < 12) return i;
   }
   return null;
 }
-function peHitSeg(cx, cy) {
-  const n = peFinished ? pePoints.length : pePoints.length - 1;
+function peHitSegPx(cx, cy, pxPts) {
+  const n = peFinished ? pxPts.length-1 : pxPts.length-2;
   for (let i = 0; i < n; i++) {
-    const a = pePoints[i], b = pePoints[(i+1) % pePoints.length];
-    if (pePtSegDist(cx, cy, a, b) < 9) return i;
+    const a=pxPts[i], b=pxPts[i+1];
+    if (pePtSegDistPx(cx,cy,a,b) < 10) return i;
   }
   return null;
 }
-function pePtSegDist(px, py, a, b) {
-  const dx=b.cx-a.cx, dy=b.cy-a.cy, l2=dx*dx+dy*dy;
-  if (l2===0) return Math.hypot(px-a.cx, py-a.cy);
-  const t = Math.max(0, Math.min(1, ((px-a.cx)*dx+(py-a.cy)*dy)/l2));
-  return Math.hypot(px-(a.cx+t*dx), py-(a.cy+t*dy));
-}
-
-// ── Auto-length from px distance (1px ≈ 1m placeholder) ──
-function peCalcLen(i) {
-  const a = pePoints[i], b = pePoints[(i+1) % pePoints.length];
-  return Math.max(0.5, Math.round(Math.hypot(b.cx-a.cx, b.cy-a.cy) * 10) / 10);
+function pePtSegDistPx(px,py,a,b){
+  const dx=b.cx-a.cx,dy=b.cy-a.cy,l2=dx*dx+dy*dy;
+  if(l2===0) return Math.hypot(px-a.cx,py-a.cy);
+  const t=Math.max(0,Math.min(1,((px-a.cx)*dx+(py-a.cy)*dy)/l2));
+  return Math.hypot(px-(a.cx+t*dx),py-(a.cy+t*dy));
 }
 
 // ── Mouse ──
+function peGetXY(e) {
+  const r = e.currentTarget.getBoundingClientRect();
+  return {cx: e.clientX-r.left, cy: e.clientY-r.top};
+}
+
 function peMouseDown(e) {
   if (e.button !== 0) return;
-  const {cx, cy} = peGetXY(e);
-  peMDownPos = {cx, cy};
+  const {cx,cy} = peGetXY(e);
   peHideInput();
-  if (peFinished) {
-    const vi = peHitVtx(cx, cy);
-    if (vi !== null) { peDragVtx = vi; e.currentTarget.style.cursor = 'grabbing'; }
+
+  if (pePhase === 'done') {
+    // Drag vertex to adjust angles
+    const coords = peComputeCoords();
+    // If finished, coords has n+1 pts; first and last are same
+    const pxPts = peScaleToCanvas(coords.slice(0, peSegs.length));
+    const vi = peHitVtxPx(cx, cy, pxPts);
+    if (vi !== null) {
+      peDragVtx = vi;
+      peDragStart = {cx, cy, origSegs: JSON.parse(JSON.stringify(peSegs))};
+      e.currentTarget.style.cursor = 'grabbing';
+    }
+    return;
+  }
+
+  // Draw phase: click adds a vertex
+  // But first check if clicking on a segment (to edit length)
+  if (peSegs.length >= 1) {
+    const coords = peComputeCoords();
+    const pxPts = peScaleToCanvas(coords);
+    const si = peHitSegPx(cx, cy, pxPts);
+    if (si !== null) { peShowInput(e.currentTarget, si); return; }
+    // Click near first point → close
+    if (peSegs.length >= 2 && Math.hypot(cx-pxPts[0].cx, cy-pxPts[0].cy) < 14) {
+      peClose(); return;
+    }
   }
 }
 
 function peMouseMove(e) {
-  let {cx, cy} = peGetXY(e);
-  // Snap H/V față de ultimul punct (sau vertex drag)
-  const ref = peDragVtx !== null ? pePoints[peDragVtx] :
-              (!peFinished && pePoints.length > 0 ? pePoints[pePoints.length-1] : null);
-  ({cx, cy} = peSnapHV(cx, cy, ref));
+  let {cx,cy} = peGetXY(e);
+
+  // Snap H/V față de ultimul punct plasat
+  const snapRef = peGetLastPxPt();
+  if (snapRef && pePhase === 'draw') {
+    const dx = Math.abs(cx - snapRef.cx), dy = Math.abs(cy - snapRef.cy);
+    const thr = 12;
+    if (dy < thr && dx > dy)       cy = snapRef.cy; // snap horizontal
+    else if (dx < thr && dy > dx)  cx = snapRef.cx; // snap vertical
+  }
   peHover = {cx, cy};
-  if (peDragVtx !== null) {
-    pePoints[peDragVtx] = {cx, cy};
-    peDraw(); return;
+
+  if (peDragVtx !== null && peDragStart) {
+    // Dragging vertex vi: this changes the angle of seg[vi-1] and seg[vi]
+    // (vertex 0 is special: changes seg[n-1] and seg[0])
+    const n = peSegs.length;
+    const orig = peDragStart.origSegs;
+
+    // Get the original px coords
+    const origCoords = [];
+    let x=0, y=0;
+    origCoords.push({x,y});
+    for (const seg of orig) {
+      x += seg.len * Math.cos(seg.angle);
+      y += seg.len * Math.sin(seg.angle);
+      origCoords.push({x,y});
+    }
+    const origPx = peScaleToCanvas(origCoords.slice(0, n));
+    const scale = origPx[0]._scale || 1;
+
+    // Delta in meters
+    const dx = (cx - peDragStart.cx) / scale;
+    const dy = (cy - peDragStart.cy) / scale;
+
+    // Original vertex position in meters
+    const origVtx = origCoords[peDragVtx];
+    const newVtx = {x: origVtx.x + dx, y: origVtx.y + dy};
+
+    // Previous vertex
+    const prevIdx = (peDragVtx - 1 + n) % n;
+    const prevVtx = origCoords[prevIdx];
+
+    // Next vertex
+    const nextIdx = peDragVtx % n; // origCoords[peDragVtx+1] for seg[peDragVtx]
+    const nextVtx = origCoords[peDragVtx < n ? peDragVtx + 1 : 0];
+
+    // Recompute only affected angles, keep lengths fixed
+    peSegs = JSON.parse(JSON.stringify(orig));
+
+    // Segment BEFORE this vertex: prevIdx → peDragVtx
+    const segBefore = prevIdx; // seg[prevIdx] goes from prevVtx to this vertex
+    const dxB = newVtx.x - prevVtx.x, dyB = newVtx.y - prevVtx.y;
+    const distB = Math.hypot(dxB, dyB);
+    if (distB > 0.01) {
+      peSegs[segBefore].angle = peSnapAngle(Math.atan2(dyB, dxB));
+      peSegs[segBefore].len = Math.max(0.5, Math.round(distB * 10) / 10);
+    }
+
+    // Segment AFTER this vertex: peDragVtx → nextVtx
+    const segAfter = peDragVtx < n ? peDragVtx : 0;
+    if (peDragVtx < n) {
+      const dxA = nextVtx.x - newVtx.x, dyA = nextVtx.y - newVtx.y;
+      const distA = Math.hypot(dxA, dyA);
+      if (distA > 0.01) {
+        peSegs[segAfter].angle = peSnapAngle(Math.atan2(dyA, dxA));
+        peSegs[segAfter].len = Math.max(0.5, Math.round(distA * 10) / 10);
+      }
+    }
+
+    peDraw(); peUpdateList();
+    return;
   }
-  if (peFinished) {
-    e.currentTarget.style.cursor = peHitVtx(cx,cy) !== null ? 'grab' : 'default';
-  } else if (pePoints.length > 0) {
-    peDraw();
+
+  if (pePhase === 'done') {
+    const coords = peComputeCoords();
+    const pxPts = peScaleToCanvas(coords.slice(0, peSegs.length));
+    const vi = peHitVtxPx(cx, cy, pxPts);
+    e.currentTarget.style.cursor = vi !== null ? 'grab' : 'default';
   }
+
+  peDraw();
 }
 
 function peMouseUp(e) {
   if (e.button !== 0) return;
-  let {cx, cy} = peGetXY(e);
   if (peDragVtx !== null) {
     peDragVtx = null;
-    e.currentTarget.style.cursor = 'default';
-    peUpdateList(); return;
+    peDragStart = null;
+    e.currentTarget.style.cursor = pePhase==='done' ? 'default' : 'crosshair';
+    peUpdateList();
+    return;
   }
-  const moved = peMDownPos && Math.hypot(cx-peMDownPos.cx, cy-peMDownPos.cy) > 5;
-  peMDownPos = null;
-  if (moved) return;
-  // Snap H/V
-  const ref = !peFinished && pePoints.length > 0 ? pePoints[pePoints.length-1] : null;
-  ({cx, cy} = peSnapHV(cx, cy, ref));
-  // Click su segment → input
-  if (pePoints.length >= 2) {
-    const si = peHitSeg(cx, cy);
-    if (si !== null) { peShowInput(e.currentTarget, si); return; }
-  }
-  // Click pe primul punct → închide
-  if (!peFinished && pePoints.length > 2) {
-    if (Math.hypot(cx-pePoints[0].cx, cy-pePoints[0].cy) < 14) {
-      peClose(); return;
+
+  if (pePhase === 'draw') {
+    const {cx,cy} = peGetXY(e);
+
+    // First click: just place the origin vertex, no segment yet
+    if (peSegs.length === 0 && peFirstPt === null) {
+      peFirstPt = {cx, cy};
+      peDraw(); peUpdateList();
+      return;
     }
+
+    // Subsequent clicks: add a segment from the current last point to here
+    // We need to map canvas px back to meters.
+    // Strategy: maintain peScale (px/m) based on drawn segments.
+    // For the very first segment (peSegs.length===0, peFirstPt set):
+    //   the "last" canvas point IS peFirstPt
+    let lastCx, lastCy;
+    if (peSegs.length === 0) {
+      lastCx = peFirstPt.cx; lastCy = peFirstPt.cy;
+      // No scale yet — use a default of 8px/m so the first segment
+      // gets a reasonable meter length; user edits it in the popup
+      peScale = 8;
+    } else {
+      // Recompute canvas position of last vertex using current scale
+      const coords = peComputeCoords();
+      const pxPts  = peScaleToCanvas(coords);
+      const lastPx = pxPts[pxPts.length - 1];
+      lastCx = lastPx.cx; lastCy = lastPx.cy;
+      peScale = pxPts[0]._scale || peScale;
+    }
+
+    const dx = (cx - lastCx) / peScale;
+    const dy = (cy - lastCy) / peScale;
+    const len = Math.max(0.5, Math.round(Math.hypot(dx, dy) * 2) / 2);
+    let angle = peSnapAngle(Math.atan2(dy, dx));
+    peSegs.push({len, angle});
+    peDraw(); peUpdateList();
+    // Show input for the new segment
+    peShowInput(e.currentTarget, peSegs.length-1);
   }
-  if (peFinished) return;
-  // Adaugă punct
-  pePoints.push({cx, cy});
-  if (pePoints.length >= 2) {
-    const i = pePoints.length - 2;
-    peLengths[i] = peCalcLen(i);
-  }
-  peDraw(); peUpdateList();
-  // Auto-popup pe noul segment
-  if (pePoints.length >= 2) peShowInput(e.currentTarget, pePoints.length-2);
 }
 
-function peMouseLeave() { peHover = null; peDragVtx = null; peDraw(); }
-
-function peGetXY(e) {
-  const r = e.currentTarget.getBoundingClientRect();
-  return {cx: e.clientX - r.left, cy: e.clientY - r.top};
+function peMouseLeave() {
+  peHover = null;
+  if (peDragVtx !== null) { peDragVtx = null; peDragStart = null; }
+  peDraw();
 }
 
-// ── Input dimensiune ──
+// ── Segment length input ──
 function peShowInput(canvas, segIdx) {
   peSelSeg = segIdx;
   const el = document.getElementById('pe-seg-input'); if (!el) return;
-  const a = pePoints[segIdx], b = pePoints[(segIdx+1) % pePoints.length];
-  const len = peLengths[segIdx] !== undefined ? peLengths[segIdx] : peCalcLen(segIdx);
-  const mx = (a.cx + b.cx) / 2, my = (a.cy + b.cy) / 2;
-  el.style.left = Math.min(Math.max(mx-80, 0), PE_W-195) + 'px';
-  el.style.top  = Math.min(Math.max(my-34, 0), PE_H-50)  + 'px';
-  el.style.display = 'flex'; el.style.flexDirection = 'row';
+  const coords = peComputeCoords();
+  const pxPts  = peScaleToCanvas(coords);
+  // Position popup near midpoint of segment
+  const a = pxPts[segIdx], b = pxPts[segIdx+1] || pxPts[0];
+  if (!a || !b) return;
+  const mx=(a.cx+b.cx)/2, my=(a.cy+b.cy)/2;
+  el.style.left = Math.min(Math.max(mx-80,0), PE_W-195) + 'px';
+  el.style.top  = Math.min(Math.max(my-34,0), PE_H-50)  + 'px';
+  el.style.display = 'flex';
   const inp = document.getElementById('pe-seg-val');
-  if (inp) { inp.value = len; inp.focus(); inp.select(); }
+  if (inp) { inp.value = peSegs[segIdx]?.len || ''; inp.focus(); inp.select(); }
+  peDraw();
 }
 function peHideInput() {
   const el = document.getElementById('pe-seg-input');
   if (el) el.style.display = 'none';
   peSelSeg = null;
 }
-// Aliasuri pentru HTML
 const peHideSegInput = peHideInput;
 function peApplySegInput() {
-  const inp = document.getElementById('pe-seg-val'); if (!inp || peSelSeg === null) return;
+  const inp = document.getElementById('pe-seg-val');
+  if (!inp || peSelSeg === null || !peSegs[peSelSeg]) return;
   const v = parseFloat(inp.value);
-  if (v > 0) { peLengths[peSelSeg] = v; }
+  if (v > 0) peSegs[peSelSeg].len = v;
   peHideInput(); peDraw(); peUpdateList();
 }
 
 // ── Undo / Clear / Close ──
 function parcelEditorUndo(e) {
   if (e && e.preventDefault) e.preventDefault();
-  if (peFinished) { peFinished = false; }
-  else if (pePoints.length > 0) { pePoints.pop(); peLengths.pop(); }
+  if (pePhase === 'done') { pePhase = 'draw'; peFinished = false; }
+  else if (peSegs.length > 0) peSegs.pop();
+  else if (peFirstPt !== null) { peFirstPt = null; }
   peHideInput(); peDraw(); peUpdateList();
 }
 function parcelEditorClear() {
-  pePoints = []; peLengths = []; peFinished = false; peHover = null;
+  peSegs = []; peFinished = false; pePhase = 'draw'; peHover = null; peSelSeg = null;
+  peDragVtx = null; peDragStart = null; peFirstPt = null; peScale = 10;
   peHideInput(); peDraw(); peUpdateList();
 }
 function parcelEditorFinish() {
-  if (pePoints.length < 3) return;
-  // Calculează ultimul segment (de la ultimul colț la primul)
-  // folosind lungimile REALE ale celorlalte segmente + unghiurile din forma vizuală
-  // Reconstruim poligonul real din primele n-1 segmente
-  const n = pePoints.length;
-  let x = 0, y = 0;
-  for (let i = 0; i < n - 1; i++) {
-    const a = pePoints[i], b = pePoints[(i + 1) % n];
-    const ang = Math.atan2((b.cy - a.cy), b.cx - a.cx);  // Y inversat corectat
-    const len = peLengths[i] || peCalcLen(i);
-    x += Math.cos(ang) * len;
-    y += Math.sin(ang) * len;
+  if (peSegs.length < 2) return;
+  // Add closing segment: from last computed point back to origin (0,0)
+  const coords = peComputeCoords();
+  const last = coords[coords.length - 1];
+  const dx = -last.x, dy = -last.y; // vector back to origin
+  const gap = Math.hypot(dx, dy);
+  if (gap > 0.1) {
+    // Add the closing segment automatically
+    peSegs.push({ len: Math.round(gap * 10) / 10, angle: Math.atan2(dy, dx) });
   }
-  // Distanța de la ultimul punct reconstruit la origine (0,0) = lungimea ultimului segment
-  const lastLen = Math.round(Math.hypot(x, y) * 10) / 10;
-  peLengths[n - 1] = Math.max(0.5, lastLen);
-  peFinished = true; peDraw(); peUpdateList();
+  peFinished = true; pePhase = 'done';
+  peHideInput(); peDraw(); peUpdateList();
 }
 function peClose() { parcelEditorFinish(); }
 
@@ -2044,197 +2247,229 @@ function peClose() { parcelEditorFinish(); }
 function peDraw() {
   const canvas = document.getElementById('parcel-editor'); if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, PE_W, PE_H);
-  ctx.fillStyle = '#060a04'; ctx.fillRect(0, 0, PE_W, PE_H);
+  ctx.clearRect(0,0,PE_W,PE_H);
+  ctx.fillStyle = '#060a04'; ctx.fillRect(0,0,PE_W,PE_H);
 
-  // Grid subtil
-  ctx.strokeStyle = 'rgba(168,184,100,0.08)'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < PE_W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,PE_H); ctx.stroke(); }
-  for (let y = 0; y < PE_H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(PE_W,y); ctx.stroke(); }
+  // Subtle grid
+  ctx.strokeStyle = 'rgba(168,184,100,0.07)'; ctx.lineWidth = 0.5;
+  for(let x=0;x<PE_W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,PE_H);ctx.stroke();}
+  for(let y=0;y<PE_H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(PE_W,y);ctx.stroke();}
 
-  if (pePoints.length === 0) return;
-
-  const pts = pePoints;
-
-  // Fill dacă închis
-  if (peFinished && pts.length > 2) {
-    ctx.beginPath();
-    pts.forEach((p,i) => i===0 ? ctx.moveTo(p.cx,p.cy) : ctx.lineTo(p.cx,p.cy));
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(168,184,100,0.07)'; ctx.fill();
+  if (peSegs.length === 0 && peFirstPt === null) {
+    ctx.fillStyle='rgba(168,184,100,0.3)'; ctx.font='12px Space Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('Click pentru primul colț', PE_W/2, PE_H/2);
+    return;
   }
 
-  // Segmente + etichete
-  const nSeg = peFinished ? pts.length : pts.length - 1;
-  for (let i = 0; i < nSeg; i++) {
-    const a = pts[i], b = pts[(i+1) % pts.length];
+  // Show first point before any segment is drawn
+  if (peSegs.length === 0 && peFirstPt !== null) {
+    ctx.fillStyle='#a8b864';
+    ctx.beginPath(); ctx.arc(peFirstPt.cx, peFirstPt.cy, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#c8d880'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='rgba(168,184,100,0.4)'; ctx.font='11px Space Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillText('Click pentru primul segment', PE_W/2, PE_H-8);
+    // Ghost line to hover + snap guides
+    if (peHover) {
+      const dxS = Math.abs(peHover.cx - peFirstPt.cx), dyS = Math.abs(peHover.cy - peFirstPt.cy);
+      const thrS = 12;
+      if (dyS < thrS && dxS > dyS) {
+        ctx.strokeStyle='rgba(255,209,102,0.35)'; ctx.lineWidth=0.8; ctx.setLineDash([2,5]);
+        ctx.beginPath(); ctx.moveTo(0, peFirstPt.cy); ctx.lineTo(PE_W, peFirstPt.cy); ctx.stroke();
+        ctx.setLineDash([]);
+      } else if (dxS < thrS && dyS > dxS) {
+        ctx.strokeStyle='rgba(255,209,102,0.35)'; ctx.lineWidth=0.8; ctx.setLineDash([2,5]);
+        ctx.beginPath(); ctx.moveTo(peFirstPt.cx, 0); ctx.lineTo(peFirstPt.cx, PE_H); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.strokeStyle='rgba(168,184,100,0.3)'; ctx.lineWidth=1; ctx.setLineDash([5,5]);
+      ctx.beginPath(); ctx.moveTo(peFirstPt.cx, peFirstPt.cy); ctx.lineTo(peHover.cx, peHover.cy); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    return;
+  }
+
+  // Compute coords + scale
+  const coords = peComputeCoords(); // n+1 points
+  const allPts = peFinished ? coords.slice(0, peSegs.length+1) : coords; // include closing pt if finished
+  const pxPts  = peScaleToCanvas(allPts);
+  const drawPts = pxPts.slice(0, peSegs.length); // vertices only (no closing repeat)
+
+  // Fill if closed
+  if (peFinished && peSegs.length >= 3) {
+    ctx.beginPath();
+    drawPts.forEach((p,i) => i===0 ? ctx.moveTo(p.cx,p.cy) : ctx.lineTo(p.cx,p.cy));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(168,184,100,0.09)'; ctx.fill();
+  }
+
+  // Draw segments
+  const nDraw = peFinished ? peSegs.length : peSegs.length; // all segs
+  for (let i = 0; i < nDraw; i++) {
+    const a = drawPts[i];
+    const b = peFinished ? drawPts[(i+1) % drawPts.length] : pxPts[i+1];
+    if (!a || !b) continue;
     const sel = peSelSeg === i;
     ctx.strokeStyle = sel ? '#ffd166' : '#a8b864';
     ctx.lineWidth = sel ? 2.5 : 1.8;
     ctx.beginPath(); ctx.moveTo(a.cx,a.cy); ctx.lineTo(b.cx,b.cy); ctx.stroke();
-    // Număr segment + lungime pe linie
-    const len = peLengths[i] !== undefined ? peLengths[i] : peCalcLen(i);
-    const mx = (a.cx+b.cx)/2, my = (a.cy+b.cy)/2;
-    const ang = Math.atan2(b.cy-a.cy, b.cx-a.cx);
+
+    // Label: length + angle indicator
+    const mx=(a.cx+b.cx)/2, my=(a.cy+b.cy)/2;
+    const ang=Math.atan2(b.cy-a.cy, b.cx-a.cx);
     ctx.save();
-    ctx.translate(mx, my); ctx.rotate(ang);
-    ctx.fillStyle = 'rgba(6,10,4,0.9)'; ctx.fillRect(-32, -10, 64, 19);
+    ctx.translate(mx,my); ctx.rotate(ang);
+    ctx.fillStyle='rgba(6,10,4,0.92)'; ctx.fillRect(-34,-11,68,20);
     ctx.fillStyle = sel ? '#ffd166' : '#c8d880';
-    ctx.font = 'bold 13px Space Mono,monospace';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText((i+1) + ' · ' + len + 'm', 0, 0);
+    ctx.font='bold 12px Space Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText((i+1)+' · '+peSegs[i].len+'m', 0, 0);
     ctx.restore();
   }
 
-  // Ghost segment
-  if (!peFinished && peHover && pts.length > 0) {
-    const last = pts[pts.length-1];
-    ctx.strokeStyle = 'rgba(168,184,100,0.28)'; ctx.lineWidth = 1;
+  // Ghost segment (while drawing, not yet placed)
+  if (pePhase==='draw' && peHover && peSegs.length > 0) {
+    const last = pxPts[pxPts.length-1];
+
+    // Snap guide lines H/V
+    const dxSnap = Math.abs(peHover.cx - last.cx), dySnap = Math.abs(peHover.cy - last.cy);
+    const thr = 12;
+    if (dySnap < thr && dxSnap > dySnap) {
+      // Horizontal snap — draw horizontal guide
+      ctx.strokeStyle='rgba(255,209,102,0.35)'; ctx.lineWidth=0.8; ctx.setLineDash([2,5]);
+      ctx.beginPath(); ctx.moveTo(0, last.cy); ctx.lineTo(PE_W, last.cy); ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (dxSnap < thr && dySnap > dxSnap) {
+      // Vertical snap — draw vertical guide
+      ctx.strokeStyle='rgba(255,209,102,0.35)'; ctx.lineWidth=0.8; ctx.setLineDash([2,5]);
+      ctx.beginPath(); ctx.moveTo(last.cx, 0); ctx.lineTo(last.cx, PE_H); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle='rgba(168,184,100,0.3)'; ctx.lineWidth=1;
     ctx.setLineDash([5,5]);
     ctx.beginPath(); ctx.moveTo(last.cx,last.cy); ctx.lineTo(peHover.cx,peHover.cy); ctx.stroke();
     ctx.setLineDash([]);
-    // Snap indicator — linie guida H sau V
-    const ref = pts[pts.length-1];
-    const dx = Math.abs(peHover.cx - ref.cx), dy = Math.abs(peHover.cy - ref.cy);
-    if (dy < 14 && dx > dy) {
-      ctx.strokeStyle = 'rgba(255,209,102,0.4)'; ctx.lineWidth = 0.8;
-      ctx.setLineDash([2,4]);
-      ctx.beginPath(); ctx.moveTo(0, ref.cy); ctx.lineTo(PE_W, ref.cy); ctx.stroke();
-      ctx.setLineDash([]);
-    } else if (dx < 14 && dy > dx) {
-      ctx.strokeStyle = 'rgba(255,209,102,0.4)'; ctx.lineWidth = 0.8;
-      ctx.setLineDash([2,4]);
-      ctx.beginPath(); ctx.moveTo(ref.cx, 0); ctx.lineTo(ref.cx, PE_H); ctx.stroke();
-      ctx.setLineDash([]);
+    // Snap ring near first point
+    if (peSegs.length >= 2 && Math.hypot(peHover.cx-pxPts[0].cx, peHover.cy-pxPts[0].cy) < 16) {
+      ctx.strokeStyle='#a8b864'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(pxPts[0].cx, pxPts[0].cy, 12, 0, Math.PI*2); ctx.stroke();
     }
-    // Close snap ring
-    if (pts.length > 2 && Math.hypot(peHover.cx-pts[0].cx, peHover.cy-pts[0].cy) < 14) {
-      ctx.strokeStyle = '#a8b864'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(pts[0].cx, pts[0].cy, 11, 0, Math.PI*2); ctx.stroke();
+  }
+
+  // Closing line (dashed) if not yet closed
+  if (pePhase==='draw' && peSegs.length >= 2) {
+    const first = drawPts[0], last = pxPts[pxPts.length-1];
+    ctx.strokeStyle='rgba(168,184,100,0.18)'; ctx.lineWidth=1;
+    ctx.setLineDash([3,6]);
+    ctx.beginPath(); ctx.moveTo(last.cx,last.cy); ctx.lineTo(first.cx,first.cy); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Closure gap indicator
+  if (peFinished) {
+    const gap = peClosureGap();
+    const gapEl = document.getElementById('parcel-editor-area');
+    if (gapEl) {
+      // Compute area via shoelace on real coords
+      const pts = peComputeCoords().slice(0, peSegs.length);
+      let area = 0;
+      for (let i=0;i<pts.length;i++){
+        const b=pts[(i+1)%pts.length];
+        area += pts[i].x*b.y - b.x*pts[i].y;
+      }
+      area = Math.abs(area/2);
+      const perim = peSegs.reduce((s,seg)=>s+seg.len, 0);
+      const gapTxt = gap < 0.1 ? '<span style="color:#5dba6a">✓ Închis perfect</span>'
+                                : '<span style="color:#ff9a3c">⚠ Eroare închidere: '+gap.toFixed(2)+'m</span>';
+      gapEl.innerHTML = 'P: '+perim.toFixed(1)+'m · S: '+area.toFixed(0)+'m²<br>'+gapTxt;
     }
   }
 
   // Vertices
-  pts.forEach((p,i) => {
+  drawPts.forEach((p,i) => {
     ctx.fillStyle = i===0 ? '#a8b864' : '#567040';
-    ctx.beginPath(); ctx.arc(p.cx, p.cy, i===0 ? 6 : 4, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#a8b864'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.cx,p.cy, i===0?6:4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#c8d880'; ctx.lineWidth=1; ctx.stroke();
+    // Vertex index label
+    ctx.fillStyle='#c8d880'; ctx.font='bold 9px Space Mono,monospace';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(i+1, p.cx, p.cy-12);
   });
 
-  // Hover dot
-  if (!peFinished && peHover) {
-    ctx.fillStyle = 'rgba(168,184,100,0.55)';
-    ctx.beginPath(); ctx.arc(peHover.cx, peHover.cy, 4, 0, Math.PI*2); ctx.fill();
+  // Hover cursor dot
+  if (pePhase==='draw' && peHover) {
+    ctx.fillStyle='rgba(168,184,100,0.5)';
+    ctx.beginPath(); ctx.arc(peHover.cx,peHover.cy,4,0,Math.PI*2); ctx.fill();
   }
 }
 
-// ── Lista segmente ──
+// ── Sidebar segment list ──
 function peUpdateList() {
   const el  = document.getElementById('parcel-segments');
   const ael = document.getElementById('parcel-editor-area');
   if (!el) return;
-  const nSeg = peFinished ? pePoints.length : pePoints.length - 1;
-  if (nSeg <= 0) {
-    el.innerHTML = '<div style="font-size:11px;color:#667755;font-family:Space Mono,monospace;padding:6px 4px;">Niciun segment</div>';
-    if (ael) ael.innerHTML = '';
+  if (peSegs.length === 0) {
+    el.innerHTML='<div style="font-size:11px;color:#667755;font-family:Space Mono,monospace;padding:6px 4px;">Niciun segment</div>';
+    if(ael) ael.innerHTML='';
     return;
   }
-  // Construim lista folosind DOM, nu innerHTML cu var() care nu funcționează
-  el.innerHTML = '';
-  let perim = 0;
-  for (let i = 0; i < nSeg; i++) {
-    const len = peLengths[i] !== undefined ? peLengths[i] : peCalcLen(i);
-    perim += len;
-    const sel = peSelSeg === i;
+  el.innerHTML='';
+  let perim=0;
+  peSegs.forEach((seg, i) => {
+    perim += seg.len;
+    const sel = peSelSeg===i;
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #263420;' + (sel ? 'background:rgba(168,184,100,0.08);' : '');
+    row.style.cssText='display:flex;align-items:center;gap:6px;padding:6px 4px;border-bottom:1px solid #263420;'+(sel?'background:rgba(168,184,100,0.08);':'');
+
     const num = document.createElement('span');
-    num.style.cssText = 'font-size:15px;color:' + (sel?'#ffd166':'#a8b864') + ';font-family:Space Mono,monospace;width:22px;flex-shrink:0;font-weight:bold;';
-    num.textContent = (i+1);
+    num.style.cssText='font-size:13px;color:'+(sel?'#ffd166':'#a8b864')+';font-family:Space Mono,monospace;width:18px;flex-shrink:0;font-weight:bold;';
+    num.textContent=i+1;
+
     const inp = document.createElement('input');
-    inp.type = 'number'; inp.value = len; inp.min = '0.5'; inp.step = '0.5';
-    inp.style.cssText = 'width:72px;background:#0a0c08;border:1px solid ' + (sel?'#a8b864':'#344828') + ';color:#f0ece0;font-family:Space Mono,monospace;font-size:15px;padding:5px 7px;';
-    const idx = i;
-    inp.onchange = function(){ peLengths[idx]=parseFloat(this.value)||peLengths[idx]; peDraw(); peUpdateList(); };
-    inp.onfocus = function(){ peSelSeg=idx; peDraw(); };
-    inp.onblur  = function(){ peSelSeg=null; peDraw(); };
+    inp.type='number'; inp.value=seg.len; inp.min='0.5'; inp.step='0.5';
+    inp.style.cssText='width:68px;background:#0a0c08;border:1px solid '+(sel?'#a8b864':'#344828')+';color:#f0ece0;font-family:Space Mono,monospace;font-size:13px;padding:4px 6px;';
+    inp.onchange=function(){ const v=parseFloat(this.value); if(v>0){peSegs[i].len=v;} peDraw(); peUpdateList(); };
+    inp.onfocus=function(){ peSelSeg=i; peDraw(); };
+    inp.onblur =function(){ peSelSeg=null; peDraw(); };
+
     const unit = document.createElement('span');
-    unit.style.cssText = 'font-size:15px;color:#9ab070;font-family:Space Mono,monospace;';
-    unit.textContent = 'm';
-    row.appendChild(num); row.appendChild(inp); row.appendChild(unit);
+    unit.style.cssText='font-size:12px;color:#9ab070;font-family:Space Mono,monospace;';
+    unit.textContent='m';
+
+    // Angle display (degrees, interior)
+    const angDeg = document.createElement('span');
+    angDeg.style.cssText='font-size:11px;color:#667755;font-family:Space Mono,monospace;margin-left:2px;';
+    const deg = ((seg.angle * 180 / Math.PI) % 360 + 360) % 360;
+    angDeg.textContent = deg.toFixed(0)+'°';
+
+    row.appendChild(num); row.appendChild(inp); row.appendChild(unit); row.appendChild(angDeg);
     el.appendChild(row);
+  });
+
+  if (!peFinished && ael) {
+    ael.innerHTML='<span style="font-size:12px;">P: '+perim.toFixed(1)+'m</span>';
   }
-  // Perimetru + suprafată
-  if (ael) {
-    // Suprafata shoelace din coords px, scalata la metri via primul segment
-    let areaTxt = '';
-    if (peFinished && pePoints.length > 2) {
-      let areaPx = 0;
-      for (let i = 0; i < pePoints.length; i++) {
-        const a = pePoints[i], b = pePoints[(i+1)%pePoints.length];
-        areaPx += a.cx*b.cy - b.cx*a.cy;
-      }
-      areaPx = Math.abs(areaPx/2);
-      // Scale: 1px = (lungime reala segment 0) / (lungime px segment 0) metri
-      let scaleM = 1;
-      if (pePoints.length >= 2 && peLengths[0] > 0) {
-        const a = pePoints[0], b = pePoints[1];
-        const lenPx = Math.max(1, Math.hypot(b.cx-a.cx, b.cy-a.cy));
-        scaleM = peLengths[0] / lenPx;
-      }
-      const areaSqM = areaPx * scaleM * scaleM;
-      ael.innerHTML = 'P: ' + perim.toFixed(1) + ' m<br>S: ' + areaSqM.toFixed(0) + ' m²';
-    } else {
-      ael.innerHTML = '<span style="font-size:14px;">P: ' + perim.toFixed(1) + ' m</span>';
-    }
-  }
+  // Area/gap shown in peDraw() when finished
 }
 
 // ── Apply to main plan ──
 function applyParcelFromEditor() {
-  if (!peFinished || pePoints.length < 3) return;
-  // Scalează coordonatele px la metri reali
-  // Bounding box px
-  const cxs = pePoints.map(p=>p.cx), cys = pePoints.map(p=>p.cy);
-  const minCx = Math.min(...cxs), maxCx = Math.max(...cxs);
-  const minCy = Math.min(...cys), maxCy = Math.max(...cys);
-  const rangeCx = maxCx - minCx || 1;
-  const rangeCy = maxCy - minCy || 1;
-  // Bounding box metri (din lungimi reale)
-  // Calcul mai simplu: scalăm px direct la metri folosind perimetrul
-  const perimPx = pePoints.reduce((s,p,i)=>{
-    const b=pePoints[(i+1)%pePoints.length];
-    return s+Math.hypot(b.cx-p.cx,b.cy-p.cy);
-  },0);
-  const perimM = peLengths.slice(0,pePoints.length).reduce((s,v)=>s+(v||0),0);
-  const scale = perimM / (perimPx || 1); // metri per px
-  // Convertim fiecare punct din px în metri, normalizat la (0,0)
-  const realPts = pePoints.map(p=>({
-    x: (p.cx - minCx) * scale,
-    y: (p.cy - minCy) * scale
-  }));
-  const minX = Math.min(...realPts.map(p=>p.x));
-  const minY = Math.min(...realPts.map(p=>p.y));
-  const maxX = Math.max(...realPts.map(p=>p.x));
-  const maxY = Math.max(...realPts.map(p=>p.y));
-  const normPts = realPts.map(p=>({x:p.x-minX, y:p.y-minY}));
-
-  PARCEL_M = normPts;
-  PARCEL_W = maxX - minX;
-  PARCEL_H = maxY - minY;
-  PARCEL_AREA = Math.abs(realPts.reduce((s,p,i)=>{
-    const b=realPts[(i+1)%realPts.length]; return s+p.x*b.y-b.x*p.y;
-  },0))/2;
-  // Resetează state-ul de clădiri (parcela s-a schimbat)
+  if (!peFinished || peSegs.length < 3) return;
+  const coords = peComputeCoords().slice(0, peSegs.length);
+  const xs=coords.map(p=>p.x), ys=coords.map(p=>p.y);
+  const minX=Math.min(...xs), minY=Math.min(...ys);
+  const maxX=Math.max(...xs), maxY=Math.max(...ys);
+  const normPts=coords.map(p=>({x:p.x-minX, y:p.y-minY}));
+  let area=0;
+  for(let i=0;i<normPts.length;i++){const b=normPts[(i+1)%normPts.length];area+=normPts[i].x*b.y-b.x*normPts[i].y;}
+  PARCEL_M=normPts; PARCEL_W=maxX-minX; PARCEL_H=maxY-minY; PARCEL_AREA=Math.abs(area/2);
   saveHistory();
-  state.buildings=[]; state.firepits=[]; state.pomi=[];
-  state.potecas=[]; state.cells={};
-  state.trees = INIT_TREES
-    .filter(t=>t.x<=PARCEL_W&&t.y<=PARCEL_H)
+  state.buildings=[]; state.firepits=[]; state.pomi=[]; state.potecas=[]; state.cells={};
+  state.trees=INIT_TREES.filter(t=>t.x<=PARCEL_W&&t.y<=PARCEL_H)
     .map((t,i)=>({id:'t'+i,x:t.x,y:t.y,r:0.75+Math.random()*0.45,state:'keep'}));
-  // Redesenează
-  fitToViewport();
-  updateHeaderSub();
+  fitToViewport(); updateHeaderSub();
 }
 
 
