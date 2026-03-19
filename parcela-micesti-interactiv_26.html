@@ -1,0 +1,3234 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parcelă Micești — Planner</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0c08; --surface:#111409; --border:#263420; --border-light:#344828;
+  --text:#f0ece0; --text-dim:#9ab070; --accent:#a8b864; --accent-dim:rgba(168,184,100,0.15);
+  --col-cabana:#4a9eff; --col-garaj:#ff9a3c; --col-foisor:#c084fc;
+  --col-firepit:#ff5c5c; --col-poteca:#ffd166; --col-tree:#4a8c30;
+  --col-deck:#e8b86d; --col-gradina:#5dba6a; --col-pom:#f4a261; --col-apa:#38bdf8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;
+  display:flex;flex-direction:column;}
+
+/* ══ TOP BAR ══ */
+.topbar{flex-shrink:0;padding:8px 14px 0;background:var(--bg);border-bottom:1px solid var(--border);}
+.header{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;
+  animation:fadeUp .5s ease forwards;opacity:0;}
+.header .sub{font-size:16px;letter-spacing:3px;color:var(--text-dim);text-transform:uppercase;}
+.header h1{font-family:'Cormorant Garamond',serif;font-size:clamp(16px,1.3vw,24px);font-weight:300;color:#e8e2d0;}
+.header h1 em{font-style:italic;color:var(--accent);}
+
+/* TABS */
+.tab-nav{display:flex;gap:1px;}
+.tab-btn{padding:5px 18px;background:var(--surface);border:1px solid var(--border);
+  border-bottom:none;color:var(--text-dim);font-family:'Space Mono',monospace;font-size:16px;cursor:pointer;
+  letter-spacing:2px;text-transform:uppercase;transition:all .15s;}
+.tab-btn:hover{color:var(--text);border-color:var(--border-light);}
+.tab-btn.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim);}
+
+/* ══ WORKSPACE ══ */
+.workspace{flex:1;min-height:0;display:flex;overflow:hidden;}
+.tab-pane{display:none;flex:1;min-height:0;}
+.tab-pane.active{display:flex;}
+
+/* ══ CANVAS SHELL ══ */
+.canvas-shell{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+.canvas-viewport{flex:1;min-height:0;overflow:hidden;background:#070907;position:relative;display:flex;align-items:center;justify-content:center;}
+.canvas-inner{display:inline-block;line-height:0;}
+.canvas-wrap{position:relative;border:1px solid var(--border-light);background:var(--surface);}
+canvas{position:absolute;top:0;left:0;}
+canvas#main{position:relative;z-index:3;}
+
+/* BOTTOM STRIP */
+.canvas-bottom{flex-shrink:0;border-top:1px solid var(--border);padding:5px 10px;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--bg);}
+.actions-bar{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.action-btn{padding:4px 10px;background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:15px;cursor:pointer;
+  transition:all .13s;white-space:nowrap;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+.action-btn.danger:hover{border-color:#ff5c5c;color:#ff5c5c;}
+.action-btn.save:hover{border-color:#a8b864;color:#a8b864;}
+.action-btn.load:hover{border-color:#4a9eff;color:#4a9eff;}
+.save-status{font-size:15px;color:var(--text-dim);letter-spacing:1px;}
+
+/* INFOBAR */
+.infobar{display:flex;gap:1px;flex-wrap:wrap;}
+.infobar-cell{background:var(--surface);border:1px solid var(--border);padding:3px 10px;
+  display:flex;flex-direction:column;}
+.infobar-cell .lbl{font-size:clamp(7px,0.5vw,10px);letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;}
+.infobar-cell .val{font-size:16px;color:var(--text);}
+
+/* ══ SIDEBAR ══ */
+.sidebar-shell{width:25vw;min-width:260px;max-width:480px;flex-shrink:0;border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.sidebar-scroll{flex:1;overflow-y:auto;padding:clamp(5px,0.5vw,10px);display:grid;
+  grid-template-columns:1fr 1fr;gap:clamp(4px,0.4vw,8px);align-content:start;}
+
+/* PANELS */
+.panel{border:1px solid var(--border-light);background:var(--surface);padding:clamp(8px,0.7vw,14px);}
+.panel.wide{grid-column:1/-1;}
+.panel-title{font-size:clamp(9px,0.65vw,13px);letter-spacing:2px;color:var(--accent);opacity:0.8;text-transform:uppercase;
+  margin-bottom:clamp(6px,0.5vw,10px);padding-bottom:clamp(4px,0.35vw,7px);border-bottom:1px solid var(--border);}
+
+/* TOOLS */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.tool-btn{display:flex;align-items:center;gap:clamp(5px,0.5vw,10px);width:100%;padding:clamp(6px,0.5vw,10px) clamp(8px,0.6vw,14px);
+  background:transparent;border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:clamp(10px,0.75vw,15px);cursor:pointer;
+  transition:all .13s ease;text-align:left;white-space:nowrap;}
+.tool-btn:hover{border-color:var(--border-light);background:rgba(255,255,255,0.03);}
+.tool-btn.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent);}
+.tool-btn.eraser.active{border-color:#ff5c5c;background:rgba(255,92,92,0.1);color:#ff5c5c;}
+.tool-btn.wide-btn{grid-column:1/-1;}
+.swatch{width:clamp(8px,0.6vw,13px);height:clamp(8px,0.6vw,13px);border-radius:2px;flex-shrink:0;}
+
+.draw-mode{display:flex;gap:6px;margin-bottom:10px;}
+.dm-btn{flex:1;padding:clamp(5px,0.4vw,9px) 4px;background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:clamp(9px,0.7vw,13px);cursor:pointer;transition:all .13s;}
+.dm-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+.tree-sub{display:flex;gap:6px;margin-bottom:10px;}
+.tree-sub-btn{flex:1;padding:clamp(5px,0.4vw,9px) 4px;background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:clamp(9px,0.7vw,13px);cursor:pointer;transition:all .13s;}
+.tree-sub-btn.active-keep{border-color:var(--col-tree);color:var(--col-tree);}
+.tree-sub-btn.active-remove{border-color:#885544;color:#885544;}
+.tree-sub-btn.active-delete{border-color:#ff5c5c;color:#ff5c5c;}
+
+.inp-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.inp-row label{font-size:clamp(9px,0.65vw,13px);color:var(--text-dim);width:clamp(14px,1.1vw,22px);}
+.inp-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:clamp(10px,0.75vw,14px);padding:clamp(3px,0.25vw,6px) clamp(4px,0.35vw,8px);}
+.inp-row input:focus{outline:none;border-color:var(--border-light);}
+.inp-hint{font-size:clamp(9px,0.65vw,13px);color:var(--text-dim);}
+
+.stat-row{display:flex;justify-content:space-between;align-items:baseline;
+  padding:clamp(4px,0.35vw,8px) 0;border-bottom:1px solid var(--border);font-size:clamp(10px,0.75vw,14px);}
+.stat-row:last-child{border-bottom:none;}
+.stat-label{color:var(--text-dim);letter-spacing:1px;}
+.stat-val{color:var(--accent);font-weight:700;}
+
+/* ══ INTERIOR ══ */
+.int-canvas-shell{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden;}
+.int-canvas-viewport{flex:1;min-height:0;overflow:hidden;background:#070907;position:relative;display:flex;align-items:center;justify-content:center;}
+.int-canvas-inner{display:inline-block;line-height:0;}
+.int-canvas-wrap{position:relative;border:1px solid var(--border-light);background:#0c0e0a;cursor:crosshair;}
+.int-canvas-wrap canvas{position:absolute;top:0;left:0;}
+.int-canvas-wrap canvas#int-main{position:relative;z-index:3;}
+.int-bottom{flex-shrink:0;border-top:1px solid var(--border);padding:6px 12px;
+  display:flex;align-items:center;gap:10px;background:var(--bg);flex-wrap:wrap;}
+.int-sidebar-shell{width:25vw;min-width:260px;max-width:480px;flex-shrink:0;border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;background:var(--bg);}
+.int-sidebar{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start;
+  overflow-y:auto;padding:10px;flex:1;}
+
+.room-btns{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px;}
+.room-btn{padding:clamp(5px,0.45vw,9px) clamp(6px,0.55vw,11px);background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:clamp(9px,0.7vw,13px);cursor:pointer;
+  transition:all .13s;text-align:left;display:flex;align-items:center;gap:clamp(5px,0.45vw,9px);}
+.room-btn:hover{border-color:var(--border-light);color:var(--text);}
+.room-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+.room-swatch{width:clamp(7px,0.55vw,12px);height:clamp(7px,0.55vw,12px);border-radius:2px;flex-shrink:0;}
+
+.furn-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.furn-btn{padding:clamp(4px,0.4vw,8px) clamp(6px,0.5vw,11px);background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:clamp(9px,0.7vw,13px);cursor:pointer;
+  transition:all .13s;text-align:left;display:flex;align-items:center;gap:clamp(4px,0.4vw,8px);}
+.furn-btn:hover{border-color:var(--border-light);color:var(--text);}
+.furn-btn.active{border-color:#c8d890;color:#c8d890;background:rgba(200,216,144,0.1);}
+.furn-swatch{width:clamp(7px,0.55vw,12px);height:clamp(7px,0.55vw,12px);flex-shrink:0;opacity:0.7;}
+
+.int-size-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+.int-size-row label{font-size:clamp(9px,0.65vw,13px);color:var(--text-dim);width:clamp(14px,1.1vw,22px);}
+.int-size-row input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:clamp(10px,0.75vw,14px);padding:clamp(3px,0.25vw,5px) clamp(4px,0.35vw,8px);}
+.int-size-row input:focus{outline:none;border-color:var(--border-light);}
+
+#tooltip{position:fixed;background:#0f1209;border:1px solid var(--border-light);color:var(--text);
+  font-family:'Space Mono',monospace;font-size:16px;padding:4px 8px;pointer-events:none;
+  z-index:9998;display:none;letter-spacing:1px;}
+
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:var(--bg);}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--accent);}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+
+/* ══ COMPASS OVERLAY ══ */
+.canvas-topbar{flex-shrink:0;display:flex;align-items:center;padding:4px 10px;
+  background:var(--bg);border-bottom:1px solid var(--border);gap:10px;}
+.compass-widget{display:flex;align-items:center;gap:6px;cursor:pointer;padding:3px 8px;
+  border:1px solid var(--border);transition:border-color .15s;}
+.compass-widget:hover{border-color:var(--border-light);}
+.compass-label{font-size:clamp(8px,0.6vw,11px);color:var(--text-dim);letter-spacing:1px;white-space:nowrap;}
+.compass-angle-edit{display:flex;align-items:center;gap:3px;}
+
+/* ══ SHORTCUTS INFOBAR ══ */
+.shortcuts-cell{min-width:0;}
+.shortcuts-val{display:flex;gap:clamp(6px,0.6vw,14px);font-size:clamp(8px,0.6vw,12px);color:var(--text-dim);}
+.shortcuts-val b{color:var(--accent);}
+
+/* ══ ROAD SIDE BUTTONS ══ */
+.road-side-btn{padding:5px 8px;background:transparent;border:1px solid var(--border);
+  color:var(--text-dim);font-family:'Space Mono',monospace;font-size:11px;cursor:pointer;transition:all .13s;}
+.road-side-btn:hover{border-color:var(--border-light);color:var(--text);}
+.road-side-btn.active-road{border-color:var(--accent);color:var(--accent);background:var(--accent-dim);}
+
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="header">
+    <h1>Site <em>Planner</em></h1>
+    <span class="sub" id="header-sub" style="cursor:pointer;border-bottom:1px dashed rgba(154,176,112,0.4);padding-bottom:1px;"
+      title="Click pentru editare" onclick="openParcelConfig()">Parcela mea · Loc / Jud · 999 m²</span>
+    <button onclick="openParcelConfig()" style="background:transparent;border:1px solid var(--border);color:var(--text-dim);
+      font-family:'Space Mono',monospace;font-size:13px;padding:3px 8px;cursor:pointer;letter-spacing:1px;"
+      onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+      onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">⚙ Config</button>
+  </div>
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('ansamblu')">Plan ansamblu</button>
+    <button class="tab-btn" onclick="switchTab('interior')">Compartimentare cabană</button>
+  </div>
+</div>
+
+<!-- PARCEL CONFIG MODAL -->
+<div id="parcel-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+  background:rgba(0,0,0,0.8);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#111409;border:1px solid #344828;width:min(940px,97vw);
+    max-height:95vh;overflow-y:auto;display:flex;flex-direction:column;">
+
+    <!-- Header -->
+    <div style="padding:14px 18px;border-bottom:1px solid #263420;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+      <span style="font-size:13px;letter-spacing:3px;color:#a8b864;text-transform:uppercase;">⚙ Configurare Parcelă</span>
+      <button onclick="closeParcelConfig()" style="background:transparent;border:none;color:#9ab070;font-size:20px;cursor:pointer;line-height:1;">✕</button>
+    </div>
+
+    <!-- Body — scrollable -->
+    <div style="padding:14px 18px;overflow-y:auto;flex:1;">
+
+      <!-- Nume + Localitate -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#9ab070;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">Nume parcelă</div>
+          <input id="cfg-name" type="text" value="Parcela mea"
+            style="width:100%;background:#0a0c08;border:1px solid #263420;color:#f0ece0;
+            font-family:'Space Mono',monospace;font-size:15px;padding:6px 10px;box-sizing:border-box;">
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#9ab070;letter-spacing:2px;text-transform:uppercase;margin-bottom:5px;">Localitate / Județ</div>
+          <input id="cfg-loc" type="text" value="Loc / Jud"
+            style="width:100%;background:#0a0c08;border:1px solid #263420;color:#f0ece0;
+            font-family:'Space Mono',monospace;font-size:15px;padding:6px 10px;box-sizing:border-box;">
+        </div>
+      </div>
+
+      <!-- Drum + Nord -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#9ab070;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Drum acces</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+            <button onclick="setRoadSide('top')" id="road-top" class="road-side-btn" style="font-size:13px;padding:6px 10px;">Sus</button>
+            <button onclick="setRoadSide('bottom')" id="road-bottom" class="road-side-btn" style="font-size:13px;padding:6px 10px;">Jos</button>
+            <button onclick="setRoadSide('left')" id="road-left" class="road-side-btn active-road">Stânga</button>
+            <button onclick="setRoadSide('right')" id="road-right" class="road-side-btn" style="font-size:13px;padding:6px 10px;">Dreapta</button>
+            <button onclick="setRoadSide('none')" id="road-none" class="road-side-btn" style="grid-column:1/-1;">Fără drum</button>
+          </div>
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#9ab070;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Nord (unghi °)</div>
+          <input id="cfg-north" type="number" value="-45" min="-180" max="360" step="1"
+            style="width:100%;background:#0a0c08;border:1px solid #263420;color:#f0ece0;
+            font-family:'Space Mono',monospace;font-size:18px;padding:6px 10px;
+            margin-bottom:4px;box-sizing:border-box;"
+            oninput="previewNorth(parseFloat(this.value))">
+          <div style="font-size:13px;color:#9ab070;">0°=sus · -45°=NV · 90°=dreapta</div>
+        </div>
+      </div>
+
+      <!-- Editor parcelă -->
+      <div style="border-top:1px solid #263420;padding-top:10px;">
+        <div style="font-size:13px;color:#9ab070;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Formă parcelă</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <button onclick="parcelEditorUndo()" class="road-side-btn" style="font-size:13px;padding:6px 14px;">↩ Undo</button>
+          <button onclick="parcelEditorClear()" class="road-side-btn" style="font-size:13px;padding:6px 14px;">✕ Reset</button>
+          <button onclick="parcelEditorFinish()" class="road-side-btn" style="font-size:13px;padding:6px 14px;border-color:#fff;color:#fff;">✓ Închide poligonul</button>
+          <span style="font-size:14px;color:#888;margin-left:8px;">Click = colț &nbsp;·&nbsp; Dublu-click = închide &nbsp;·&nbsp; RClick = undo</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <colgroup><col style="width:420px;"><col></colgroup>
+          <tr style="vertical-align:top;">
+            <td style="padding:0;position:relative;">
+              <canvas id="parcel-editor" width="420" height="240"
+                style="background:#060a04;border:1px solid #263420;cursor:crosshair;display:block;"
+                onmousedown="peMouseDown(event)" onmousemove="peMouseMove(event)"
+                onmouseup="peMouseUp(event)" ondblclick="peClose()"
+                oncontextmenu="parcelEditorUndo(event)" onmouseleave="peMouseLeave()">
+              </canvas>
+              <div id="pe-seg-input" style="display:none;position:absolute;top:10px;left:10px;
+                background:#0a0e08;border:1px solid #a8b864;padding:5px 8px;z-index:20;
+                flex-direction:row;align-items:center;gap:6px;">
+                <input id="pe-seg-val" type="number" min="0.5" step="0.5"
+                  style="width:60px;background:#060a04;border:1px solid #344828;color:#a8b864;
+                  font-family:Space Mono,monospace;font-size:13px;padding:3px 5px;text-align:center;"
+                  onkeydown="if(event.key==='Enter'){peApplySegInput();}if(event.key==='Escape'){peHideSegInput();}">
+                <span style="font-size:11px;color:#9ab070;font-family:Space Mono,monospace;">m</span>
+                <button onclick="peApplySegInput()" style="background:#111409;border:1px solid #a8b864;
+                  color:#a8b864;font-family:Space Mono,monospace;font-size:11px;padding:3px 8px;cursor:pointer;">✓</button>
+                <button onclick="peHideSegInput()" style="background:transparent;border:none;
+                  color:#666;cursor:pointer;font-size:14px;line-height:1;padding:0 4px;">✕</button>
+              </div>
+            </td>
+            <td style="padding:0 0 0 8px;vertical-align:top;">
+              <div style="background:#0d100b;border:1px solid #263420;height:240px;
+                display:flex;flex-direction:column;">
+                <div style="font-size:14px;color:#a8b864;letter-spacing:2px;text-transform:uppercase;
+                  padding:7px 10px;border-bottom:1px solid #263420;background:#111409;flex-shrink:0;">SEGMENTE</div>
+                <div id="parcel-segments" style="padding:4px 8px;overflow-y:auto;flex:1;"></div>
+                <div id="parcel-editor-area" style="padding:6px 10px;border-top:1px solid #263420;
+                  font-size:13px;color:#a8b864;font-family:'Space Mono',monospace;
+                  line-height:1.8;flex-shrink:0;"></div>
+              </div>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+    </div><!-- /body -->
+
+    <!-- Footer cu butoane — INTOTDEAUNA vizibil -->
+    <div style="padding:12px 18px;border-top:1px solid #263420;display:flex;gap:8px;justify-content:flex-end;flex-shrink:0;background:#111409;">
+      <button onclick="closeParcelConfig()" style="padding:8px 20px;background:transparent;
+        border:1px solid #344828;color:#9ab070;font-family:'Space Mono',monospace;
+        font-size:13px;cursor:pointer;">Anulează</button>
+      <button onclick="applyNameOnly()" style="padding:8px 20px;background:transparent;
+        border:1px solid #4a6a30;color:#f0ece0;font-family:'Space Mono',monospace;
+        font-size:13px;cursor:pointer;">Doar nume</button>
+      <button onclick="applyParcelConfig()" style="padding:8px 20px;
+        background:rgba(168,184,100,0.15);border:1px solid #a8b864;color:#a8b864;
+        font-family:'Space Mono',monospace;font-size:13px;cursor:pointer;">Aplică tot</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- WORKSPACE -->
+<div class="workspace">
+
+<!-- ══ TAB ANSAMBLU ══ -->
+<div id="tab-ansamblu" class="tab-pane active">
+
+  <div class="canvas-shell">
+    <div class="canvas-viewport" id="canvasViewport">
+      <div class="canvas-inner" id="canvasInner">
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="grid"></canvas>
+          <canvas id="terrain"></canvas>
+          <canvas id="main"></canvas>
+        </div>
+        <!-- Compass click overlay -->
+        <div id="compassOverlay" style="display:none;position:absolute;right:2px;top:2px;
+          background:rgba(10,12,8,0.92);border:1px solid var(--accent);padding:6px 10px;
+          z-index:20;display:none;align-items:center;gap:6px;">
+          <input id="compassInput" type="number" value="-45" min="-180" max="360" step="1"
+            style="width:60px;background:var(--bg);border:1px solid var(--border);color:var(--accent);
+            font-family:Space Mono,monospace;font-size:14px;padding:3px 6px;text-align:center;"
+            oninput="applyCompassAngle(parseFloat(this.value))"
+            onkeydown="if(event.key==='Enter'||event.key==='Escape'){hideCompassOverlay();}">
+          <span style="font-size:11px;color:var(--text-dim);">° Nord</span>
+          <button onclick="hideCompassOverlay()" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 2px;">✕</button>
+        </div>
+      </div>
+    </div>
+    <div class="canvas-bottom">
+      <div class="actions-bar">
+        <button class="action-btn" onclick="undo()">↩ Undo</button>
+        <button class="action-btn save" onclick="saveProgress()">↓ Salvează</button>
+        <button class="action-btn load" onclick="document.getElementById('import-input').click()">↑ Încarcă</button>
+        <input type="file" id="import-input" accept=".json" onchange="loadProgress(event)" style="display:none;">
+        <button class="action-btn danger" onclick="clearAll()">✕ Reset</button>
+        <span class="save-status" id="save-status"></span>
+      </div>
+      <div class="infobar">
+        <div class="infobar-cell"><span class="lbl">Grid</span><span class="val">0.5 × 0.5 m</span></div>
+        <div class="infobar-cell shortcuts-cell">
+          <span class="lbl">Shortcuts</span>
+          <span class="val shortcuts-val">
+            <span><b>M</b> mută</span>
+            <span><b>RClick</b> șterge</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-shell">
+    <div class="sidebar-scroll">
+
+      <div class="panel wide">
+        <div class="panel-title">Mod desenare</div>
+        <div class="draw-mode">
+          <button class="dm-btn active" id="dm-free">Liber</button>
+          <button class="dm-btn" id="dm-cell">Celulă 0.5m</button>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Unelte</div>
+        <div class="tools-grid">
+          <button class="tool-btn active" data-tool="tree">
+            <span class="swatch" style="background:var(--col-tree);border-radius:50%;"></span>Copac
+          </button>
+          <button class="tool-btn" data-tool="cabana">
+            <span class="swatch" style="background:var(--col-cabana);"></span>Cabană
+          </button>
+          <button class="tool-btn" data-tool="garaj">
+            <span class="swatch" style="background:var(--col-garaj);"></span>Garaj
+          </button>
+          <button class="tool-btn" data-tool="foisor">
+            <span class="swatch" style="background:var(--col-foisor);"></span>Foișor
+          </button>
+          <button class="tool-btn" data-tool="firepit">
+            <span class="swatch" style="background:var(--col-firepit);border-radius:50%;"></span>Fire Pit
+          </button>
+          <button class="tool-btn" data-tool="poteca">
+            <span class="swatch" style="background:var(--col-poteca);height:3px;border-radius:2px;margin-top:3px;"></span>Potecă
+          </button>
+          <button class="tool-btn" data-tool="deck">
+            <span class="swatch" style="background:var(--col-deck);"></span>Deck
+          </button>
+          <button class="tool-btn" data-tool="gradina">
+            <span class="swatch" style="background:var(--col-gradina);"></span>Grădină
+          </button>
+          <button class="tool-btn" data-tool="pom">
+            <span class="swatch" style="background:var(--col-pom);border-radius:50%;"></span>Pom fructifer
+          </button>
+          <button class="tool-btn" data-tool="apa">
+            <span class="swatch" style="background:var(--col-apa);border-radius:3px;"></span>Apă
+          </button>
+          <button class="tool-btn eraser wide-btn" data-tool="eraser">
+            <span style="font-size:12px;line-height:1;">⌫</span>Radieră
+          </button>
+          <button class="tool-btn wide-btn" data-tool="select">
+            <span style="font-size:20px;line-height:1;">↖</span>Mută / Selectează
+          </button>
+        </div>
+      </div>
+
+      <div class="panel wide" id="panel-tree">
+        <div class="panel-title">Opțiuni copac</div>
+        <div class="tree-sub">
+          <button class="tree-sub-btn active-keep" id="tsb-keep">Păstrat</button>
+          <button class="tree-sub-btn" id="tsb-mark">Cu X</button>
+          <button class="tree-sub-btn" id="tsb-del">Șterge</button>
+        </div>
+        <div style="font-size:13px;color:var(--text-dim);line-height:1.6;">
+          <b style="color:var(--col-tree);">Păstrat</b> — verde ·
+          <b style="color:#885544;">Cu X</b> — eliminat ·
+          <b style="color:#ff5c5c;">Șterge</b> — dispare
+        </div>
+      </div>
+
+      <div class="panel wide" id="panel-pom" style="display:none;">
+        <div class="panel-title">Tip pom</div>
+        <div class="tree-sub" style="flex-wrap:wrap;gap:3px;">
+          <button class="tree-sub-btn" id="pom-mar" style="font-size:13px;" onclick="setPomType('măr')">Măr</button>
+          <button class="tree-sub-btn" id="pom-par" style="font-size:13px;" onclick="setPomType('păr')">Păr</button>
+          <button class="tree-sub-btn" id="pom-prun" style="font-size:13px;" onclick="setPomType('prun')">Prun</button>
+          <button class="tree-sub-btn" id="pom-cires" style="font-size:13px;" onclick="setPomType('cireș')">Cireș</button>
+          <button class="tree-sub-btn" id="pom-nuc" style="font-size:13px;" onclick="setPomType('nuc')">Nuc</button>
+        </div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:5px;">Selectat: <span id="pom-selected" style="color:var(--col-pom);">măr</span></div>
+      </div>
+
+      <div class="panel wide" id="panel-size" style="display:none;">
+        <div class="panel-title">Dimensiuni</div>
+        <div class="inp-row">
+          <label>L</label>
+          <input id="inp-w" type="number" value="8" min="0.5" max="36" step="0.5">
+          <span style="font-size:15px;color:var(--text-dim);">m</span>
+        </div>
+        <div class="inp-row">
+          <label>A</label>
+          <input id="inp-h" type="number" value="10" min="0.5" max="28" step="0.5">
+          <span style="font-size:15px;color:var(--text-dim);">m</span>
+        </div>
+        <div class="inp-hint" id="size-hint">Suprafață: 80 m²</div>
+      </div>
+
+      <div class="panel wide" id="panel-edit" style="display:none;">
+        <div class="panel-title" id="panel-edit-title">Editează obiect</div>
+        <div style="display:flex;gap:8px;align-items:flex-end;">
+          <div class="inp-row" style="flex:1;margin-bottom:0;">
+            <label>L</label>
+            <input id="edit-w" type="number" min="0.5" max="50" step="0.5"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:18px;padding:3px 5px;width:60px;">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+          <div class="inp-row" style="flex:1;margin-bottom:0;">
+            <label>A</label>
+            <input id="edit-h" type="number" min="0.5" max="50" step="0.5"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:'Space Mono',monospace;font-size:18px;padding:3px 5px;width:60px;">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+          <div style="font-size:15px;color:var(--text-dim);white-space:nowrap;" id="edit-area-hint"></div>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Statistici</div>
+        <div class="stat-row"><span class="stat-label">PARCELĂ</span><span class="stat-val" id="stat-parcel">1002 m²</span></div>
+        <div class="stat-row"><span class="stat-label">CONSTRUIT</span><span class="stat-val" id="stat-built">0 m²</span></div>
+        <div class="stat-row"><span class="stat-label">POT</span><span class="stat-val" id="stat-pot">0%</span></div>
+        <div class="stat-row"><span class="stat-label">COPACI</span><span class="stat-val" id="stat-trees">0</span></div>
+        <div class="stat-row"><span class="stat-label">APĂ</span><span class="stat-val" id="stat-apa">0 m²</span></div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /tab-ansamblu -->
+
+<!-- ══ TAB INTERIOR ══ -->
+<div id="tab-interior" class="tab-pane">
+
+  <div class="int-canvas-shell">
+    <div class="int-canvas-viewport" id="intCanvasViewport">
+      <div class="int-canvas-inner" id="intCanvasInner">
+        <div class="int-canvas-wrap" id="intCanvasWrap">
+          <canvas id="int-grid"></canvas>
+          <canvas id="int-main"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="int-bottom">
+      <div class="actions-bar">
+        <button class="action-btn" onclick="intUndo()">↩ Undo</button>
+        <button class="action-btn save" onclick="intSave()">↓ Salvează</button>
+        <button class="action-btn load" onclick="document.getElementById('int-import').click()">↑ Încarcă</button>
+        <input type="file" id="int-import" accept=".json" onchange="intLoad(event)" style="display:none;">
+        <button class="action-btn danger" onclick="intClear()">✕ Reset</button>
+        <span class="save-status" id="int-save-status"></span>
+      </div>
+      <div class="infobar">
+        <div class="infobar-cell"><span class="lbl">Grid</span><span class="val">0.25 × 0.25 m</span></div>
+        <div class="infobar-cell shortcuts-cell">
+          <span class="lbl">Shortcuts</span>
+          <span class="val shortcuts-val">
+            <span><b>R</b> rotire</span>
+            <span><b>M</b> mută</span>
+            <span><b>RClick</b> șterge</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="int-sidebar-shell">
+    <div class="int-sidebar">
+
+      <div class="panel wide" id="int-cabin-info">
+        <div class="panel-title">Suprafața cabană</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-bottom:8px;" id="int-cabin-dims">Nicio cabană plasată în plan</div>
+        <div style="display:flex;gap:6px;">
+          <div class="int-size-row" style="flex:1;margin:0;">
+            <label>L</label>
+            <input id="int-cw" type="number" value="8" min="1" max="30" step="0.25" oninput="resizeIntCanvas()">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+          <div class="int-size-row" style="flex:1;margin:0;">
+            <label>A</label>
+            <input id="int-ch" type="number" value="10" min="1" max="30" step="0.25" oninput="resizeIntCanvas()">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Camere</div>
+        <div class="room-btns" id="room-btns">
+          <button class="room-btn active" data-room="living" onclick="setIntTool('room','living')"><span class="room-swatch" style="background:#4a9eff;"></span>Living</button>
+          <button class="room-btn" data-room="dormitor" onclick="setIntTool('room','dormitor')"><span class="room-swatch" style="background:#c084fc;"></span>Dormitor</button>
+          <button class="room-btn" data-room="bucatarie" onclick="setIntTool('room','bucatarie')"><span class="room-swatch" style="background:#ff9a3c;"></span>Bucătărie</button>
+          <button class="room-btn" data-room="baie" onclick="setIntTool('room','baie')"><span class="room-swatch" style="background:#5dba6a;"></span>Baie</button>
+          <button class="room-btn" data-room="hol" onclick="setIntTool('room','hol')"><span class="room-swatch" style="background:#ffd166;"></span>Hol</button>
+          <button class="room-btn" data-room="birou" onclick="setIntTool('room','birou')"><span class="room-swatch" style="background:#f4a261;"></span>Birou</button>
+          <button class="room-btn" data-room="terasa" onclick="setIntTool('room','terasa')"><span class="room-swatch" style="background:#a8b864;"></span>Terasă</button>
+          <button class="room-btn" data-room="depozit" onclick="setIntTool('room','depozit')"><span class="room-swatch" style="background:#888;"></span>Depozit</button>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Pereți · Uși · Ferestre</div>
+        <div class="room-btns" style="margin-bottom:8px;">
+          <button class="room-btn" onclick="setIntTool('wall')"><span class="room-swatch" style="background:#d0ccc0;border-radius:0;height:4px;margin-top:2px;"></span>Perete</button>
+          <button class="room-btn" onclick="setIntTool('door')"><span class="room-swatch" style="background:transparent;border-bottom:2px solid #c8a060;border-radius:0;"></span>Ușă (75cm)</button>
+          <button class="room-btn" onclick="setIntTool('window')"><span class="room-swatch" style="background:rgba(136,204,238,0.3);border:1px solid #88ccee;"></span>Fereastră</button>
+        </div>
+        <div id="door-config" style="display:none;border-top:1px solid var(--border);padding-top:7px;margin-top:2px;">
+          <div style="font-size:15px;color:var(--text-dim);margin-bottom:5px;">Configurare ușă</div>
+          <div style="display:flex;gap:5px;margin-bottom:5px;">
+            <button class="tree-sub-btn active-keep" id="door-side-right" onclick="intDoorSide='right';document.getElementById('door-side-right').className='tree-sub-btn active-keep';document.getElementById('door-side-left').className='tree-sub-btn';">Balama dreapta</button>
+            <button class="tree-sub-btn" id="door-side-left" onclick="intDoorSide='left';document.getElementById('door-side-left').className='tree-sub-btn active-keep';document.getElementById('door-side-right').className='tree-sub-btn';">Balama stânga</button>
+          </div>
+          <div style="display:flex;gap:5px;">
+            <button class="tree-sub-btn active-keep" id="door-dir-in" onclick="intDoorDir='in';document.getElementById('door-dir-in').className='tree-sub-btn active-keep';document.getElementById('door-dir-out').className='tree-sub-btn';">Spre interior</button>
+            <button class="tree-sub-btn" id="door-dir-out" onclick="intDoorDir='out';document.getElementById('door-dir-out').className='tree-sub-btn active-keep';document.getElementById('door-dir-in').className='tree-sub-btn';">Spre exterior</button>
+          </div>
+        </div>
+        <div id="window-config" style="display:none;border-top:1px solid var(--border);padding-top:7px;margin-top:2px;">
+          <div style="font-size:15px;color:var(--text-dim);margin-bottom:5px;">Lățime fereastră</div>
+          <div class="int-size-row" style="margin:0;">
+            <label>L</label>
+            <input id="win-w-inp" type="number" value="1.0" min="0.25" max="7" step="0.25" oninput="intWindowW=parseFloat(this.value)||1.0">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Mobilier</div>
+        <div class="furn-grid">
+          <button class="furn-btn" onclick="setIntTool('furn','pat_dublu')"><span class="furn-swatch" style="background:#8899bb;border-radius:2px;"></span>Pat dublu</button>
+          <button class="furn-btn" onclick="setIntTool('furn','pat_single')"><span class="furn-swatch" style="background:#6677aa;border-radius:2px;"></span>Pat single</button>
+          <button class="furn-btn" onclick="setIntTool('furn','canapea')"><span class="furn-swatch" style="background:#aa8866;border-radius:2px;"></span>Canapea</button>
+          <button class="furn-btn" onclick="setIntTool('furn','masa_dining')"><span class="furn-swatch" style="background:#c4a060;border-radius:2px;"></span>Masă dining</button>
+          <button class="furn-btn" onclick="setIntTool('furn','birou_mob')"><span class="furn-swatch" style="background:#a0b880;border-radius:2px;"></span>Birou</button>
+          <button class="furn-btn" onclick="setIntTool('furn','dulap_mare')"><span class="furn-swatch" style="background:#998877;border-radius:2px;"></span>Dulap mare</button>
+          <button class="furn-btn" onclick="setIntTool('furn','dulap_mic')"><span class="furn-swatch" style="background:#887766;border-radius:2px;"></span>Dulap mic</button>
+          <button class="furn-btn" onclick="setIntTool('furn','wc')"><span class="furn-swatch" style="background:#5dba6a;border-radius:50%;"></span>WC</button>
+          <button class="furn-btn" onclick="setIntTool('furn','dus')"><span class="furn-swatch" style="background:#4a9eff;border-radius:2px;"></span>Duș</button>
+          <button class="furn-btn" onclick="setIntTool('furn','cada')"><span class="furn-swatch" style="background:#5588cc;border-radius:2px;"></span>Cadă 60×170</button>
+          <button class="furn-btn" onclick="setIntTool('furn','tv')"><span class="furn-swatch" style="background:#334455;border-radius:2px;"></span>TV</button>
+          <button class="furn-btn" onclick="setIntTool('furn','lavoar')"><span class="furn-swatch" style="background:#6ab8d0;border-radius:50%;"></span>Lavoar</button>
+          <button class="furn-btn" onclick="setIntTool('furn','frigider')"><span class="furn-swatch" style="background:#99aabb;border-radius:2px;"></span>Frigider</button>
+          <button class="furn-btn" onclick="setIntTool('furn','aragaz')"><span class="furn-swatch" style="background:#cc8844;border-radius:2px;"></span>Aragaz</button>
+          <button class="furn-btn" onclick="setIntTool('furn','scaun')"><span class="furn-swatch" style="background:#b8a080;border-radius:50%;"></span>Scaun</button>
+          <button class="furn-btn" onclick="setIntTool('furn','fotoliu')"><span class="furn-swatch" style="background:#c09060;border-radius:2px;"></span>Fotoliu</button>
+        </div>
+      </div>
+
+      <div class="panel wide" id="int-rot-panel" style="display:none;">
+        <div class="panel-title">Rotire mobilier</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="action-btn" onclick="intCurrentRotation=(intCurrentRotation+90)%360;document.getElementById('int-rot-indicator').textContent=intCurrentRotation+'°';intDraw();" style="padding:5px 12px;">↻ +90°</button>
+          <span style="font-size:20px;color:var(--accent);font-weight:700;" id="int-rot-indicator">0°</span>
+          <span style="font-size:15px;color:var(--text-dim);">sau apasă <b style="color:var(--text);">R</b></span>
+        </div>
+      </div>
+
+      <div class="panel wide" id="int-dus-panel" style="display:none;">
+        <div class="panel-title">Dimensiuni duș</div>
+        <div style="display:flex;gap:6px;">
+          <div class="int-size-row" style="flex:1;margin:0;">
+            <label>L</label>
+            <input id="dus-w-inp" type="number" value="0.9" min="0.5" max="2.0" step="0.05" oninput="FURN_DEFS.dus.w=parseFloat(this.value)||0.9;">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+          <div class="int-size-row" style="flex:1;margin:0;">
+            <label>A</label>
+            <input id="dus-h-inp" type="number" value="0.9" min="0.5" max="2.0" step="0.05" oninput="FURN_DEFS.dus.h=parseFloat(this.value)||0.9;">
+            <span style="font-size:15px;color:var(--text-dim);">m</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Statistici interior</div>
+        <div class="stat-row"><span class="stat-label">S. CONSTRUITĂ</span><span class="stat-val" id="int-stat-constr">—</span></div>
+        <div class="stat-row"><span class="stat-label">S. UTILĂ</span><span class="stat-val" id="int-stat-utila">—</span></div>
+        <div id="int-stat-rooms"></div>
+      </div>
+
+      <div class="panel wide">
+        <div class="panel-title">Unelte</div>
+        <div style="display:flex;gap:5px;">
+          <button class="room-btn" style="flex:1;" onclick="setIntTool('eraser')"><span style="font-size:20px;">⌫</span> Radieră</button>
+          <button class="room-btn" style="flex:1;" onclick="setIntTool('select')"><span style="font-size:20px;">↖</span> Mută</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- /tab-interior -->
+
+</div><!-- /workspace -->
+
+<div id="tooltip"></div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════
+let PARCEL_W = 37, PARCEL_H = 27;
+let PARCEL_AREA = PARCEL_W * PARCEL_H;
+let _dynPX = 22;        // pixels per meter — updated dynamically by fitToViewport
+const PX = 22;          // initial value (used before first fit)
+const CELL = 0.5;
+let CW = PARCEL_W * _dynPX;
+let CH = PARCEL_H * _dynPX;
+
+const m2p = v => v * _dynPX;
+const p2m = v => v / _dynPX;
+
+let PARCEL_M = [
+  {x:0,y:0},{x:PARCEL_W,y:0},
+  {x:PARCEL_W,y:PARCEL_H},{x:0,y:PARCEL_H}
+];
+let PARCEL_PX = PARCEL_M.map(p=>({x:p.x*_dynPX,y:p.y*_dynPX}));
+
+// Initial trees from satellite
+const INIT_TREES = [
+  {x:4,y:3},{x:6,y:2},{x:8,y:4},{x:5,y:6},{x:9,y:6},{x:11,y:3},
+  {x:13,y:5},{x:7,y:9},{x:16,y:4},{x:20,y:3},{x:24,y:5},
+  {x:10,y:13},{x:15,y:12},{x:20,y:11},{x:26,y:9},{x:30,y:7},
+  {x:8,y:19},{x:14,y:18},{x:19,y:20},{x:25,y:17},{x:29,y:15},
+  {x:12,y:24},{x:22,y:23},
+];
+
+const snap = v => Math.round(v / CELL) * CELL;
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let activeTool = 'tree';
+let roadSide = 'left';   // top | bottom | left | right | none
+let northAngle = -45;    // degrees, 0=up, -45=NW
+let treeMode = 'keep';   // keep | mark | delete
+let drawMode = 'free';   // free | cell
+let history = [];
+let mouseDown = false;
+let dragObj = null, dragOx = 0, dragOy = 0;
+let selectedObj = null;
+let rMouseDown = false;
+let potecaActive = false, potecaPts = [];
+let ghostPos = null;
+// Cell paint tracking (to avoid repainting same cell in one drag)
+let paintedCells = new Set();
+
+let state = {
+  trees: INIT_TREES.map((t,i)=>({
+    id:'t'+i, x:t.x, y:t.y,
+    r: 0.75+Math.random()*0.45,
+    state:'keep'  // keep | mark | deleted
+  })),
+  buildings: [],   // {id,type,x,y,w,h}
+  firepits:  [],   // {id,x,y,w,h}
+  pomi:      [],   // {id,x,y,r,tip}
+  potecas:   [],   // arrays of {x,y}
+  cells:     {},   // key "x_y" -> type (for cell paint mode)
+};
+
+// ══════════════════════════════════════════
+// CANVAS
+// ══════════════════════════════════════════
+const gridC = document.getElementById('grid');
+const terrC = document.getElementById('terrain');
+const mainC = document.getElementById('main');
+CW=Math.round(PARCEL_W*_dynPX);CH=Math.round(PARCEL_H*_dynPX);
+[gridC,terrC,mainC].forEach(c=>{c.width=CW;c.height=CH;});
+const wrap = document.getElementById('canvasWrap');
+wrap.style.width=CW+'px'; wrap.style.height=CH+'px';
+const gCtx = gridC.getContext('2d');
+const tCtx = terrC.getContext('2d');
+const mCtx = mainC.getContext('2d');
+
+// ══════════════════════════════════════════
+// GRID
+// ══════════════════════════════════════════
+function drawGrid(){
+  gCtx.clearRect(0,0,CW,CH);
+  gCtx.fillStyle='#0c0e0a'; gCtx.fillRect(0,0,CW,CH);
+
+  // clip parcel
+  gCtx.save(); parcelPath(gCtx); gCtx.clip();
+
+  // 0.5m grid
+  gCtx.strokeStyle='rgba(168,184,100,0.28)'; gCtx.lineWidth=0.6;
+  for(let x=0;x<=CW;x+=m2p(CELL)){line(gCtx,x,0,x,CH);}
+  for(let y=0;y<=CH;y+=m2p(CELL)){line(gCtx,0,y,CW,y);}
+
+  // 5m grid
+  gCtx.strokeStyle='rgba(168,184,100,0.45)'; gCtx.lineWidth=0.9;
+  for(let x=0;x<=CW;x+=m2p(5)){line(gCtx,x,0,x,CH);}
+  for(let y=0;y<=CH;y+=m2p(5)){line(gCtx,0,y,CW,y);}
+
+  gCtx.restore();
+
+  // Parcel border
+  gCtx.save(); parcelPath(gCtx);
+  gCtx.strokeStyle='#a8b864'; gCtx.lineWidth=1.6;
+  gCtx.shadowColor='rgba(168,184,100,0.35)'; gCtx.shadowBlur=7;
+  gCtx.stroke(); gCtx.restore();
+
+  // Axis labels — mai mari, Y pe dreapta
+  gCtx.font='bold 11px Space Mono,monospace';
+  // X — jos
+  gCtx.fillStyle='rgba(180,220,120,0.95)';
+  gCtx.textAlign='center'; gCtx.textBaseline='bottom';
+  for(let i=0;i<=PARCEL_W;i+=5){
+    const px=m2p(i);
+    // Fundal mic
+    gCtx.fillStyle='rgba(10,12,8,0.7)'; gCtx.fillRect(px-14,CH-14,28,13);
+    gCtx.fillStyle='rgba(180,220,120,0.95)'; gCtx.fillText(i+'m',px,CH-2);
+  }
+  // Y — dreapta
+  gCtx.textAlign='left'; gCtx.textBaseline='middle';
+  for(let i=0;i<=PARCEL_H;i+=5){
+    const py=m2p(i);
+    gCtx.fillStyle='rgba(10,12,8,0.7)'; gCtx.fillRect(CW-32,py-7,30,13);
+    gCtx.fillStyle='rgba(180,220,120,0.95)'; gCtx.fillText(i+'m',CW-30,py);
+  }
+  gCtx.textAlign='left'; gCtx.textBaseline='alphabetic';
+
+  drawRoad(); drawCompass(); drawScaleBar();
+}
+
+function drawRoad(){
+  if(!roadSide || roadSide==='none') return;
+  gCtx.save();
+  const rw = m2p(1); // road width in px
+  let rx=0,ry=0,rw2=rw,rh2=CH, cx=rw/2,cy=CH/2, dashX1=rw/2,dashY1=0,dashX2=rw/2,dashY2=CH, rot=0;
+  if(roadSide==='top')    { rx=0;ry=0;rw2=CW;rh2=rw; cx=CW/2;cy=rw/2; dashX1=0;dashY1=rw/2;dashX2=CW;dashY2=rw/2; rot=0; }
+  if(roadSide==='bottom') { rx=0;ry=CH-rw;rw2=CW;rh2=rw; cx=CW/2;cy=CH-rw/2; dashX1=0;dashY1=CH-rw/2;dashX2=CW;dashY2=CH-rw/2; }
+  if(roadSide==='left')   { rx=0;ry=0;rw2=rw;rh2=CH; cx=rw/2;cy=CH/2; dashX1=rw/2;dashY1=0;dashX2=rw/2;dashY2=CH; }
+  if(roadSide==='right')  { rx=CW-rw;ry=0;rw2=rw;rh2=CH; cx=CW-rw/2;cy=CH/2; dashX1=CW-rw/2;dashY1=0;dashX2=CW-rw/2;dashY2=CH; }
+  gCtx.fillStyle='#141c0e'; gCtx.fillRect(rx,ry,rw2,rh2);
+  gCtx.strokeStyle='#2a3a1c'; gCtx.lineWidth=1; gCtx.strokeRect(rx,ry,rw2,rh2);
+  gCtx.strokeStyle='#2e4020'; gCtx.lineWidth=0.7; gCtx.setLineDash([10,14]);
+  line(gCtx,dashX1,dashY1,dashX2,dashY2);
+  gCtx.setLineDash([]);
+  gCtx.restore();
+}
+
+function drawCompass(){
+  const cx=CW-44, cy=44, r=28;
+  const rad = northAngle * Math.PI / 180;
+  // Vârful săgeții (nord) și coada
+  const nx=cx+Math.sin(rad)*r,    ny=cy-Math.cos(rad)*r;
+  const sx=cx-Math.sin(rad)*(r*0.55), sy=cy+Math.cos(rad)*(r*0.55);
+  // Perpendicular pentru lățimea săgeții
+  const pw=6;
+  const px2=-Math.cos(rad)*pw, py2=-Math.sin(rad)*pw;
+  gCtx.save();
+  // Background circle
+  gCtx.beginPath(); gCtx.arc(cx,cy,r+7,0,Math.PI*2);
+  gCtx.fillStyle='rgba(8,11,6,0.82)'; gCtx.fill();
+  gCtx.strokeStyle='#344828'; gCtx.lineWidth=1.5; gCtx.stroke();
+  // Linie ax (coada)
+  gCtx.strokeStyle='rgba(168,184,100,0.45)'; gCtx.lineWidth=1;
+  gCtx.beginPath(); gCtx.moveTo(sx,sy); gCtx.lineTo(cx,cy); gCtx.stroke();
+  // Săgeată nord — formă de diamant alungit
+  gCtx.fillStyle='#a8b864';
+  gCtx.beginPath();
+  gCtx.moveTo(nx, ny);                          // vârf nord
+  gCtx.lineTo(cx+px2, cy+py2);                  // stânga mijloc
+  gCtx.lineTo(sx, sy);                          // coadă
+  gCtx.lineTo(cx-px2, cy-py2);                  // dreapta mijloc
+  gCtx.closePath(); gCtx.fill();
+  // Contur săgeată
+  gCtx.strokeStyle='#c8d880'; gCtx.lineWidth=0.8; gCtx.stroke();
+  // N label — mai mare, deasupra vârfului
+  const lx=cx+Math.sin(rad)*(r+16), ly=cy-Math.cos(rad)*(r+16);
+  gCtx.fillStyle='#d8e890'; gCtx.font='bold 14px Space Mono,monospace';
+  gCtx.textAlign='center'; gCtx.textBaseline='middle';
+  // Fundal mic sub N
+  gCtx.fillStyle='rgba(8,11,6,0.7)';
+  gCtx.fillRect(lx-8,ly-8,16,16);
+  gCtx.fillStyle='#d8e890';
+  gCtx.fillText('N',lx,ly);
+  gCtx.restore();
+}
+
+function drawScaleBar(){
+  const bar=m2p(5);
+  // Pozitionata jos-stanga, deasupra etichetelor X
+  const x=m2p(1)+4, y=CH-22;
+  gCtx.save();
+  // Fundal
+  gCtx.fillStyle='rgba(10,12,8,0.75)';
+  gCtx.fillRect(x-4, y-12, bar+8, 22);
+  // Bara
+  gCtx.strokeStyle='#c8d880'; gCtx.lineWidth=2;
+  line(gCtx,x,y,x+bar,y);
+  line(gCtx,x,y-5,x,y+5);
+  line(gCtx,x+bar,y-5,x+bar,y+5);
+  // Text
+  gCtx.fillStyle='#d8e890'; gCtx.font='bold 11px Space Mono,monospace';
+  gCtx.textAlign='center'; gCtx.textBaseline='bottom';
+  gCtx.fillText('5 m', x+bar/2, y-3);
+  gCtx.restore();
+}
+
+function drawTerrain(){
+  tCtx.clearRect(0,0,CW,CH);
+  tCtx.save(); parcelPath(tCtx); tCtx.clip();
+  const g=tCtx.createLinearGradient(0,0,CW,CH);
+  g.addColorStop(0,'rgba(255,255,220,0.02)');
+  g.addColorStop(0.6,'rgba(0,0,0,0)');
+  g.addColorStop(1,'rgba(0,0,0,0.1)');
+  tCtx.fillStyle=g; tCtx.fillRect(0,0,CW,CH);
+  tCtx.restore();
+}
+
+// ══════════════════════════════════════════
+// MAIN DRAW
+// ══════════════════════════════════════════
+function draw(){
+  mCtx.clearRect(0,0,CW,CH);
+  mCtx.save(); parcelPath(mCtx); mCtx.clip();
+
+  // Cell-painted areas
+  drawCells();
+
+  // Potecas
+  state.potecas.forEach(pts => drawPotecaLine(pts,false));
+  if(potecaActive && potecaPts.length>0 && ghostPos){
+    drawPotecaLine([...potecaPts, ghostPos], true);
+  }
+
+  // Buildings
+  state.buildings.forEach(b=>drawRect(b,false));
+  state.firepits.forEach(f=>drawFirepit(f,false));
+
+  // Ghost previews — doar în modul liber
+  if(ghostPos && !mouseDown && !potecaActive && drawMode==='free'){
+    if(['cabana','garaj','foisor','deck','gradina','apa'].includes(activeTool)) drawRectGhost(ghostPos);
+    if(activeTool==='firepit') drawFirepitGhost(ghostPos);
+    if(activeTool==='pom') drawPomGhost(ghostPos);
+  }
+
+  // Highlight selected object
+  if(selectedObj && selectedObj.x !== undefined && selectedObj.w){
+    const col = getColor(selectedObj.type);
+    mCtx.save();
+    mCtx.strokeStyle=col;
+    mCtx.lineWidth=2;
+    mCtx.shadowColor=col;
+    mCtx.shadowBlur=8;
+    mCtx.setLineDash([4,3]);
+    mCtx.strokeRect(m2p(selectedObj.x)-2, m2p(selectedObj.y)-2, m2p(selectedObj.w)+4, m2p(selectedObj.h)+4);
+    mCtx.restore();
+  }
+
+  // Trees (non-deleted)
+  state.trees.filter(t=>t.state!=='deleted').forEach(t=>drawTree(t));
+
+  // Pomi fructiferi
+  state.pomi.forEach(p=>drawPom(p));
+
+  // Cell highlight cursor — culoarea uneltei active, cu fill transparent
+  if(drawMode==='cell' && ghostPos && activeTool!=='select' && activeTool!=='eraser'){
+    const cx=Math.floor(ghostPos.x/CELL)*CELL;
+    const cy=Math.floor(ghostPos.y/CELL)*CELL;
+    const col = CELL_COLORS[activeTool];
+    if(col){
+      mCtx.save();
+      mCtx.fillStyle = col+'0.14)';
+      mCtx.strokeStyle = col+'0.7)';
+      mCtx.lineWidth=1;
+      mCtx.fillRect(m2p(cx),m2p(cy),m2p(CELL),m2p(CELL));
+      mCtx.strokeRect(m2p(cx),m2p(cy),m2p(CELL),m2p(CELL));
+      mCtx.restore();
+    }
+  }
+
+  mCtx.restore();
+  updateStats();
+}
+
+// ── Cells ──
+const CELL_COLORS = {
+  cabana:'rgba(74,158,255,', garaj:'rgba(255,154,60,',
+  foisor:'rgba(192,132,252,', firepit:'rgba(255,92,92,',
+  poteca:'rgba(255,209,102,', deck:'rgba(232,184,109,',
+  gradina:'rgba(93,186,106,', apa:'rgba(56,189,248,', eraser:null
+};
+
+function drawCells(){
+  for(const [key,type] of Object.entries(state.cells)){
+    const [cx,cy]=key.split('_').map(Number);
+    const col = CELL_COLORS[type];
+    if(!col) continue;
+    mCtx.save();
+    mCtx.fillStyle = col+'0.28)';
+    mCtx.strokeStyle = col+'0.6)';
+    mCtx.lineWidth=0.5;
+    mCtx.fillRect(m2p(cx),m2p(cy),m2p(CELL),m2p(CELL));
+    mCtx.strokeRect(m2p(cx),m2p(cy),m2p(CELL),m2p(CELL));
+    mCtx.restore();
+  }
+}
+
+// ── Rect (building/deck/gradina) ──
+function drawRect(b, ghost){
+  const col = getColor(b.type);
+  const px=m2p(b.x), py=m2p(b.y), pw=m2p(b.w), ph=m2p(b.h);
+  mCtx.save();
+  if(ghost) mCtx.globalAlpha=0.4;
+
+  if(b.type==='gradina'){
+    mCtx.fillStyle='rgba(93,186,106,0.1)'; mCtx.fillRect(px,py,pw,ph);
+    // soil hatch
+    mCtx.strokeStyle='rgba(93,186,106,0.18)'; mCtx.lineWidth=0.5;
+    const sp=m2p(0.5);
+    for(let i=0;i<=pw;i+=sp){line(mCtx,px+i,py,px+i,py+ph);}
+    for(let j=0;j<=ph;j+=sp){line(mCtx,px,py+j,px+pw,py+j);}
+    mCtx.strokeStyle='#5dba6a'; mCtx.lineWidth=ghost?1:1.5;
+    if(ghost) mCtx.setLineDash([4,3]);
+    mCtx.strokeRect(px,py,pw,ph); mCtx.setLineDash([]);
+    if(!ghost){
+      mCtx.fillStyle='#5dba6a'; mCtx.textAlign='center'; mCtx.textBaseline='middle';
+      mCtx.font=Math.min(11,ph*0.3)+'px Space Mono,monospace';
+      mCtx.fillText('grădină',px+pw/2,py+ph/2-4);
+      mCtx.font='8px Space Mono,monospace'; mCtx.fillStyle='rgba(93,186,106,1)';
+      mCtx.fillText(b.w+'×'+b.h+'m',px+pw/2,py+ph/2+6);
+    }
+  } else if(b.type==='apa'){
+    mCtx.fillStyle='rgba(56,189,248,0.18)'; mCtx.fillRect(px,py,pw,ph);
+    // Valuri orizontale
+    mCtx.save();
+    mCtx.beginPath(); mCtx.rect(px,py,pw,ph); mCtx.clip();
+    mCtx.strokeStyle='rgba(56,189,248,0.35)'; mCtx.lineWidth=1;
+    const wsp=m2p(0.4);
+    for(let wy=py+wsp/2;wy<py+ph;wy+=wsp){
+      mCtx.beginPath();
+      mCtx.moveTo(px,wy);
+      for(let wx=px;wx<px+pw;wx+=m2p(0.5)){
+        mCtx.quadraticCurveTo(wx+m2p(0.25),wy-m2p(0.1),wx+m2p(0.5),wy);
+      }
+      mCtx.stroke();
+    }
+    mCtx.restore();
+    mCtx.strokeStyle='#38bdf8'; mCtx.lineWidth=ghost?1:1.5;
+    if(ghost) mCtx.setLineDash([4,3]);
+    mCtx.strokeRect(px,py,pw,ph); mCtx.setLineDash([]);
+    if(!ghost){
+      mCtx.fillStyle='#38bdf8'; mCtx.textAlign='center'; mCtx.textBaseline='middle';
+      mCtx.font=Math.min(11,ph*0.3)+'px Space Mono,monospace';
+      mCtx.fillText('apă',px+pw/2,py+ph/2-4);
+      mCtx.font='8px Space Mono,monospace';
+      mCtx.fillText(b.w+'×'+b.h+'m',px+pw/2,py+ph/2+6);
+    }
+  } else if(b.type==='deck'){
+    mCtx.fillStyle='rgba(232,184,109,0.1)'; mCtx.fillRect(px,py,pw,ph);
+    // wood planks (vertical lines)
+    mCtx.strokeStyle='rgba(232,184,109,0.22)'; mCtx.lineWidth=0.5;
+    const plank=m2p(0.3);
+    for(let i=0;i<=pw;i+=plank){line(mCtx,px+i,py,px+i,py+ph);}
+    mCtx.strokeStyle='#e8b86d'; mCtx.lineWidth=ghost?1:1.5;
+    if(ghost) mCtx.setLineDash([4,3]);
+    mCtx.strokeRect(px,py,pw,ph); mCtx.setLineDash([]);
+    if(!ghost){
+      mCtx.fillStyle='#e8b86d'; mCtx.textAlign='center'; mCtx.textBaseline='middle';
+      mCtx.font=Math.min(11,ph*0.3)+'px Space Mono,monospace';
+      mCtx.fillText('deck',px+pw/2,py+ph/2-4);
+      mCtx.font='8px Space Mono,monospace'; mCtx.fillStyle='rgba(232,184,109,1)';
+      mCtx.fillText(b.w+'×'+b.h+'m',px+pw/2,py+ph/2+6);
+    }
+  } else {
+    mCtx.fillStyle=col+'22'; mCtx.fillRect(px,py,pw,ph);
+    mCtx.strokeStyle=col; mCtx.lineWidth=ghost?1:1.5;
+    if(ghost) mCtx.setLineDash([4,3]);
+    mCtx.strokeRect(px,py,pw,ph); mCtx.setLineDash([]);
+    if(!ghost){
+      mCtx.fillStyle=col; mCtx.textAlign='center'; mCtx.textBaseline='middle';
+      mCtx.font=Math.min(11,ph*0.32)+'px Space Mono,monospace';
+      mCtx.fillText(b.type.charAt(0).toUpperCase()+b.type.slice(1),px+pw/2,py+ph/2-4);
+      mCtx.font='8px Space Mono,monospace'; mCtx.fillStyle=col;
+      mCtx.fillText(b.w+'×'+b.h+'m',px+pw/2,py+ph/2+6);
+    }
+  }
+  mCtx.restore();
+}
+
+function drawRectGhost(pos){
+  const w=parseFloat(document.getElementById('inp-w').value)||8;
+  const h=parseFloat(document.getElementById('inp-h').value)||10;
+  const s=snapM(pos);
+  drawRect({type:activeTool,x:s.x,y:s.y,w,h},true);
+}
+
+// ── Firepit ──
+function drawFirepit(f, ghost){
+  const x=m2p(f.x+f.w/2), y=m2p(f.y+f.h/2);
+  const rw=m2p(f.w/2), rh=m2p(f.h/2);
+  mCtx.save();
+  if(ghost) mCtx.globalAlpha=0.4;
+  mCtx.beginPath(); mCtx.ellipse(x,y,rw,rh,0,0,Math.PI*2);
+  mCtx.fillStyle='rgba(255,92,92,0.12)'; mCtx.fill();
+  mCtx.strokeStyle='#ff5c5c'; mCtx.lineWidth=ghost?1:1.5;
+  if(ghost) mCtx.setLineDash([3,3]);
+  mCtx.stroke(); mCtx.setLineDash([]);
+  mCtx.beginPath(); mCtx.ellipse(x,y,rw*0.4,rh*0.4,0,0,Math.PI*2);
+  mCtx.fillStyle='rgba(255,140,60,0.3)'; mCtx.fill();
+  if(!ghost){
+    mCtx.fillStyle='#ff7a7a'; mCtx.font='8px Space Mono,monospace';
+    mCtx.textAlign='center';
+    mCtx.fillText('fire pit',x,y+rh+10);
+    mCtx.fillStyle='rgba(255,92,92,1)'; mCtx.font='7px Space Mono,monospace';
+    mCtx.fillText(f.w+'×'+f.h+'m',x,y+rh+20);
+  }
+  mCtx.restore();
+}
+
+function drawFirepitGhost(pos){
+  const w=parseFloat(document.getElementById('inp-w').value)||3;
+  const h=parseFloat(document.getElementById('inp-h').value)||3;
+  const s=snapM(pos);
+  drawFirepit({x:s.x,y:s.y,w,h},true);
+}
+
+// ── Poteca ──
+function drawPotecaLine(pts, ghost){
+  if(pts.length<2) return;
+  mCtx.save();
+  mCtx.strokeStyle='#ffd166'; mCtx.lineWidth=m2p(0.5);
+  mCtx.lineCap='round'; mCtx.lineJoin='round';
+  mCtx.setLineDash([m2p(0.6),m2p(0.35)]);
+  mCtx.globalAlpha=ghost?0.35:0.75;
+  mCtx.beginPath();
+  mCtx.moveTo(m2p(pts[0].x),m2p(pts[0].y));
+  pts.slice(1).forEach(p=>mCtx.lineTo(m2p(p.x),m2p(p.y)));
+  mCtx.stroke(); mCtx.restore();
+}
+
+// ── Pom fructifer ──
+function drawPom(p){
+  const x=m2p(p.x), y=m2p(p.y), r=m2p(p.r);
+  mCtx.save();
+  // Outer canopy
+  mCtx.beginPath(); mCtx.arc(x,y,r,0,Math.PI*2);
+  mCtx.fillStyle='#3d6e22'; mCtx.fill();
+  // Inner
+  mCtx.beginPath(); mCtx.arc(x,y,r*0.65,0,Math.PI*2);
+  mCtx.fillStyle='#4a8a28'; mCtx.fill();
+  // Fruit dots
+  mCtx.fillStyle='#f4a261';
+  const dots=[[-0.3,-0.3],[0.3,-0.2],[-0.1,0.3],[0.35,0.25]];
+  dots.forEach(([dx,dy])=>{
+    mCtx.beginPath();
+    mCtx.arc(x+dx*r,y+dy*r,r*0.14,0,Math.PI*2);
+    mCtx.fill();
+  });
+  // Label
+  mCtx.fillStyle='#ffb87a';
+  mCtx.font='8px Space Mono,monospace';
+  mCtx.textAlign='center';
+  mCtx.fillText(p.tip,x,y+r+9);
+  mCtx.restore();
+}
+
+function drawPomGhost(pos){
+  const s=snapM(pos);
+  const x=m2p(s.x), y=m2p(s.y), r=m2p(0.9);
+  mCtx.save(); mCtx.globalAlpha=0.4;
+  mCtx.beginPath(); mCtx.arc(x,y,r,0,Math.PI*2);
+  mCtx.fillStyle='#3d6e22'; mCtx.fill();
+  mCtx.strokeStyle='#f4a261'; mCtx.lineWidth=1;
+  mCtx.setLineDash([3,2]); mCtx.stroke();
+  mCtx.restore();
+}
+
+// ── Tree ──
+function drawTree(t){
+  const x=m2p(t.x), y=m2p(t.y), r=m2p(t.r);
+  mCtx.save();
+  if(t.state==='mark'){
+    mCtx.globalAlpha=0.5;
+    mCtx.beginPath(); mCtx.arc(x,y,r,0,Math.PI*2);
+    mCtx.fillStyle='#2a2520'; mCtx.fill();
+    mCtx.strokeStyle='#4a3a30'; mCtx.lineWidth=1; mCtx.stroke();
+    mCtx.strokeStyle='#885544'; mCtx.lineWidth=1.3; mCtx.globalAlpha=0.65;
+    const s=r*0.55;
+    line(mCtx,x-s,y-s,x+s,y+s); line(mCtx,x+s,y-s,x-s,y+s);
+  } else {
+    mCtx.beginPath(); mCtx.arc(x,y,r,0,Math.PI*2);
+    mCtx.fillStyle='#1e3a12'; mCtx.fill();
+    mCtx.beginPath(); mCtx.arc(x,y,r*0.68,0,Math.PI*2);
+    mCtx.fillStyle='#2a5018'; mCtx.fill();
+    mCtx.beginPath(); mCtx.arc(x-r*0.2,y-r*0.2,r*0.28,0,Math.PI*2);
+    mCtx.fillStyle='rgba(80,140,50,0.3)'; mCtx.fill();
+  }
+  mCtx.restore();
+}
+
+// ══════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════
+function line(ctx,x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+function parcelPath(ctx){
+  ctx.beginPath();
+  PARCEL_PX.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.closePath();
+}
+function getColor(t){
+  return {cabana:'#4a9eff',garaj:'#ff9a3c',foisor:'#c084fc',firepit:'#ff5c5c',
+          poteca:'#ffd166',deck:'#e8b86d',gradina:'#5dba6a',pom:'#f4a261',apa:'#38bdf8'}[t]||'#fff';
+}
+// ══════════════════════════════════════════
+// AUTO-FIT — SITE PLAN
+// Canvas resizes in actual pixels to fill the viewport
+// ══════════════════════════════════════════
+const canvasViewport = document.getElementById('canvasViewport');
+const canvasInner    = document.getElementById('canvasInner');
+
+function fitToViewport(){
+  const vw = canvasViewport.clientWidth  - 2;
+  const vh = canvasViewport.clientHeight - 2;
+  if(vw < 50 || vh < 50) return;
+  // Compute new PX so plan fills available space
+  const newPX = Math.min(vw / PARCEL_W, vh / PARCEL_H);
+  CW = Math.round(PARCEL_W * newPX);
+  CH = Math.round(PARCEL_H * newPX);
+  // Resize all 3 canvases
+  [gridC, terrC, mainC].forEach(c => { c.width = CW; c.height = CH; });
+  wrap.style.width  = CW + 'px';
+  wrap.style.height = CH + 'px';
+  // Update derived globals
+  PARCEL_PX = PARCEL_M.map(p => ({x: p.x * newPX, y: p.y * newPX}));
+  // Patch m2p/p2m in place (reassign via closure trick — see CONFIG)
+  _dynPX = newPX;
+  drawGrid();
+  drawTerrain();
+  draw();
+}
+
+new ResizeObserver(() => {
+  if(document.getElementById('tab-ansamblu').classList.contains('active')) fitToViewport();
+}).observe(canvasViewport);
+
+function snapM(pos){return{x:snap(pos.x),y:snap(pos.y)};}
+function canvasToM(cx,cy){return{x:cx/_dynPX, y:cy/_dynPX};}
+function getPos(e){
+  const r=mainC.getBoundingClientRect();
+  return canvasToM(e.clientX-r.left, e.clientY-r.top);
+}
+function inParcel(mx,my){
+  const pts=PARCEL_M; let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if(((yi>my)!==(yj>my))&&(mx<(xj-xi)*(my-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+function cellKey(mx,my){
+  const cx=Math.floor(mx/CELL)*CELL;
+  const cy=Math.floor(my/CELL)*CELL;
+  return cx+'_'+cy;
+}
+function findAt(mx,my){
+  // trees
+  const t=state.trees.find(t=>t.state!=='deleted'&&Math.hypot(t.x-mx,t.y-my)<t.r+0.4);
+  if(t) return t;
+  // buildings
+  for(const b of state.buildings)
+    if(mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h) return b;
+  // firepits
+  for(const f of state.firepits)
+    if(mx>=f.x&&mx<=f.x+f.w&&my>=f.y&&my<=f.y+f.h) return f;
+  // pomi
+  const p=state.pomi.find(p=>Math.hypot(p.x-mx,p.y-my)<p.r+0.4);
+  if(p) return p;
+  return null;
+}
+
+// ══════════════════════════════════════════
+// PLACE / PAINT
+// ══════════════════════════════════════════
+function placeOrPaint(mx,my){
+  if(!inParcel(mx,my)) return;
+  const s=snapM({x:mx,y:my});
+
+  // CELL mode: paint a 0.5×0.5 cell
+  if(drawMode==='cell'){
+    const key=cellKey(mx,my);
+    if(activeTool==='eraser'){
+      delete state.cells[key];
+      // also check objects
+      eraseAt(mx,my);
+    } else if(['cabana','garaj','foisor','poteca','firepit','deck','gradina','apa'].includes(activeTool)){
+      if(!paintedCells.has(key)){
+        paintedCells.add(key);
+        state.cells[key]=activeTool;
+      }
+    } else if(activeTool==='tree' || activeTool==='pom'){
+      actOnTree(mx,my,s);
+    }
+    return;
+  }
+
+  // FREE mode
+  if(activeTool==='tree'){
+    actOnTree(mx,my,s);
+  } else if(activeTool==='pom'){
+    actOnPom(mx,my,s);
+  } else if(activeTool==='eraser'){
+    eraseAt(mx,my);
+  } else if(['cabana','garaj','foisor','deck'].includes(activeTool)){
+    const w=parseFloat(document.getElementById('inp-w').value)||8;
+    const h=parseFloat(document.getElementById('inp-h').value)||10;
+    state.buildings.push({id:'b'+Date.now(),type:activeTool,x:s.x,y:s.y,w,h});
+  } else if(activeTool==='gradina'){
+    const w=parseFloat(document.getElementById('inp-w').value)||4;
+    const h=parseFloat(document.getElementById('inp-h').value)||6;
+    state.buildings.push({id:'b'+Date.now(),type:'gradina',x:s.x,y:s.y,w,h});
+  } else if(activeTool==='apa'){
+    const w=parseFloat(document.getElementById('inp-w').value)||4;
+    const h=parseFloat(document.getElementById('inp-h').value)||4;
+    state.buildings.push({id:'b'+Date.now(),type:'apa',x:s.x,y:s.y,w,h});
+  } else if(activeTool==='firepit'){
+    const w=parseFloat(document.getElementById('inp-w').value)||3;
+    const h=parseFloat(document.getElementById('inp-h').value)||3;
+    state.firepits.push({id:'f'+Date.now(),x:s.x,y:s.y,w,h});
+  } else if(activeTool==='poteca'){
+    const raw={x:mx,y:my};
+    if(potecaActive && potecaPts.length===1){
+      state.potecas.push([potecaPts[0], raw]);
+      potecaPts=[raw];
+    } else {
+      potecaActive=true; potecaPts=[raw];
+    }
+  }
+}
+
+function actOnTree(mx,my,s){
+  const existing=state.trees.find(t=>t.state!=='deleted'&&Math.hypot(t.x-mx,t.y-my)<t.r+0.4);
+  if(existing){
+    if(treeMode==='delete') existing.state='deleted';
+    else if(treeMode==='mark') existing.state='mark';
+    else existing.state='keep';
+  } else if(treeMode!=='delete'){
+    state.trees.push({
+      id:'t'+Date.now(),x:s.x,y:s.y,
+      r:0.75+Math.random()*0.4,
+      state: treeMode==='mark'?'mark':'keep'
+    });
+  }
+}
+
+let currentPomType = 'măr';
+function setPomType(tip){
+  currentPomType = tip;
+  document.getElementById('pom-selected').textContent = tip;
+  // highlight button
+  document.querySelectorAll('[id^="pom-"]').forEach(b=>{
+    if(b.id==='pom-selected') return;
+    b.style.borderColor=''; b.style.color='';
+  });
+}
+
+function actOnPom(mx,my,s){
+  const existing=state.pomi.find(p=>Math.hypot(p.x-mx,p.y-my)<p.r+0.4);
+  if(existing){ state.pomi=state.pomi.filter(p=>p!==existing); return; }
+  state.pomi.push({id:'p'+Date.now(),x:s.x,y:s.y,r:0.9,tip:currentPomType});
+}
+
+function eraseAt(mx,my){
+  // Trees: mark as deleted
+  const t=state.trees.find(t=>t.state!=='deleted'&&Math.hypot(t.x-mx,t.y-my)<t.r+0.4);
+  if(t){t.state='deleted';return;}
+  // Buildings
+  const bi=state.buildings.findIndex(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+  if(bi>=0){state.buildings.splice(bi,1);return;}
+  // Firepits
+  const fi=state.firepits.findIndex(f=>mx>=f.x&&mx<=f.x+f.w&&my>=f.y&&my<=f.y+f.h);
+  if(fi>=0){state.firepits.splice(fi,1);return;}
+  // Pomi fructiferi
+  const pi=state.pomi.findIndex(p=>Math.hypot(p.x-mx,p.y-my)<p.r+0.4);
+  if(pi>=0){state.pomi.splice(pi,1);return;}
+  // Potecas
+  for(let i=state.potecas.length-1;i>=0;i--){
+    const pts=state.potecas[i];
+    for(let j=0;j<pts.length-1;j++){
+      if(distToSegment(mx,my,pts[j],pts[j+1])<0.4){
+        state.potecas.splice(i,1); return;
+      }
+    }
+  }
+  // Cells
+  const key=cellKey(mx,my);
+  delete state.cells[key];
+}
+
+function distToSegment(px,py,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y;
+  const len2=dx*dx+dy*dy;
+  if(len2===0) return Math.hypot(px-a.x,py-a.y);
+  const t=Math.max(0,Math.min(1,((px-a.x)*dx+(py-a.y)*dy)/len2));
+  return Math.hypot(px-(a.x+t*dx),py-(a.y+t*dy));
+}
+
+// ══════════════════════════════════════════
+// EVENTS
+// ══════════════════════════════════════════
+mainC.addEventListener('mousedown',e=>{
+  if(e.button===0){
+    const mPos=getPos(e);
+    if(compassHitTest(mPos.x, mPos.y)){ showCompassOverlay(); return; }
+  }
+  if(e.button===2){
+    rMouseDown=true;
+    if(potecaActive){ potecaActive=false; potecaPts=[]; draw(); return; }
+    const m=getPos(e); saveHistory(); eraseAt(m.x,m.y); draw(); return;
+  }
+  if(e.button!==0) return;
+  mouseDown=true;
+  paintedCells.clear();
+  const m=getPos(e);
+
+  // Select/move mode
+  if(activeTool==='select'){
+    const obj=findAt(m.x,m.y);
+    if(obj&&obj.type!=='tree'&&obj.type!=='pom'){
+      dragObj=obj;
+      dragOx=snapM(m).x-obj.x;
+      dragOy=snapM(m).y-obj.y;
+      selectObject(obj);
+    } else if(!obj) {
+      selectObject(null);
+    }
+    return;
+  }
+
+  saveHistory();
+  placeOrPaint(m.x,m.y);
+  draw();
+});
+
+mainC.addEventListener('mousemove',e=>{
+  const m=getPos(e);
+  ghostPos=m;
+
+  // Tooltip
+  const tip=document.getElementById('tooltip');
+  const s=snapM(m);
+  // position display removed
+
+  if(activeTool==='select'||activeTool==='eraser'){
+    const obj=findAt(m.x,m.y);
+    if(obj){
+      tip.style.display='block';
+      tip.style.left=(e.clientX+12)+'px';
+      tip.style.top=(e.clientY-8)+'px';
+      tip.textContent=obj.type+(obj.w?` ${obj.w}×${obj.h}m`:'');
+    } else { tip.style.display='none'; }
+  } else { tip.style.display='none'; }
+
+  // Drag
+  if(dragObj&&mouseDown){
+    const s2=snapM(m);
+    dragObj.x=s2.x-dragOx;
+    dragObj.y=s2.y-dragOy;
+  }
+
+  // Right-click drag erase
+  if(rMouseDown){ eraseAt(m.x,m.y); }
+
+  // Cell paint drag
+  if(mouseDown&&!dragObj&&(activeTool==='eraser'||(drawMode==='cell'&&activeTool!=='select'))){
+    placeOrPaint(m.x,m.y);
+  }
+
+  draw();
+});
+
+mainC.addEventListener('mouseup',e=>{
+  if(e.button===2){ rMouseDown=false; return; }
+  mouseDown=false; dragObj=null;
+});
+mainC.addEventListener('mouseleave',()=>{
+  ghostPos=null; rMouseDown=false;
+  document.getElementById('tooltip').style.display='none';
+  draw();
+});
+
+mainC.addEventListener('dblclick',e=>{
+  // Double-click ends poteca chain (lifts the pen)
+  if(activeTool==='poteca'&&potecaActive){
+    potecaActive=false; potecaPts=[];
+    draw();
+  }
+});
+
+// Right-click cancel poteca
+mainC.addEventListener('contextmenu',e=>{ e.preventDefault(); });
+
+// ══════════════════════════════════════════
+// TOOL BUTTONS
+// ══════════════════════════════════════════
+document.querySelectorAll('.tool-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    if(potecaActive){
+      if(potecaPts.length>=2) state.potecas.push([...potecaPts]);
+      potecaActive=false; potecaPts=[];
+    }
+    document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    activeTool=btn.dataset.tool;
+    if(activeTool!=='select'){ selectObject(null); }
+    // Poteca defaults to cell mode; everything else defaults to free
+    if(activeTool==='poteca'){
+      drawMode='cell';
+      document.getElementById('dm-cell').classList.add('active');
+      document.getElementById('dm-free').classList.remove('active');
+    } else {
+      drawMode='free';
+      document.getElementById('dm-free').classList.add('active');
+      document.getElementById('dm-cell').classList.remove('active');
+    }
+
+    const sp=document.getElementById('panel-size');
+    const tp=document.getElementById('panel-tree');
+    const pp=document.getElementById('panel-pom');
+    const showSize=['cabana','garaj','foisor','firepit','deck','gradina','apa'].includes(activeTool);
+    sp.style.display=showSize?'block':'none';
+    tp.style.display=activeTool==='tree'?'block':'none';
+    pp.style.display=activeTool==='pom'?'block':'none';
+
+    // Set sensible defaults per tool
+    if(activeTool==='firepit'){
+      document.getElementById('inp-w').value='3';
+      document.getElementById('inp-h').value='3';
+    } else if(activeTool==='deck'){
+      document.getElementById('inp-w').value='6';
+      document.getElementById('inp-h').value='4';
+    } else if(activeTool==='gradina'){
+      document.getElementById('inp-w').value='5';
+      document.getElementById('inp-h').value='8';
+    } else if(activeTool==='apa'){
+      document.getElementById('inp-w').value='4';
+      document.getElementById('inp-h').value='4';
+    }
+    updateSizeHint();
+    draw();
+  });
+});
+
+// Draw mode
+document.getElementById('dm-free').addEventListener('click',()=>{
+  drawMode='free';
+  document.getElementById('dm-free').classList.add('active');
+  document.getElementById('dm-cell').classList.remove('active');
+  draw();
+});
+document.getElementById('dm-cell').addEventListener('click',()=>{
+  drawMode='cell';
+  document.getElementById('dm-cell').classList.add('active');
+  document.getElementById('dm-free').classList.remove('active');
+  draw();
+});
+
+// Tree sub-buttons
+const tsbMap={
+  'tsb-keep':{mode:'keep',cls:'active-keep'},
+  'tsb-mark':{mode:'mark',cls:'active-remove'},
+  'tsb-del': {mode:'delete',cls:'active-delete'}
+};
+Object.entries(tsbMap).forEach(([id,cfg])=>{
+  document.getElementById(id).addEventListener('click',()=>{
+    treeMode=cfg.mode;
+    Object.entries(tsbMap).forEach(([bid,bcfg])=>{
+      document.getElementById(bid).className='tree-sub-btn';
+    });
+    document.getElementById(id).classList.add(cfg.cls);
+  });
+});
+
+// Size inputs
+function updateSizeHint(){
+  const w=parseFloat(document.getElementById('inp-w').value)||0;
+  const h=parseFloat(document.getElementById('inp-h').value)||0;
+  document.getElementById('size-hint').textContent=`Suprafață: ${(w*h).toFixed(1)} m²`;
+}
+['inp-w','inp-h'].forEach(id=>document.getElementById(id).addEventListener('input',updateSizeHint));
+
+// ══════════════════════════════════════════
+// STATS
+// ══════════════════════════════════════════
+function updateStats(){
+  const POT_TYPES=['cabana','garaj','foisor'];
+  // Celule pline (numără doar celulele efectiv desenate)
+  const cCabana = Object.values(state.cells).filter(v=>v==='cabana').length * CELL * CELL;
+  const cGaraj  = Object.values(state.cells).filter(v=>v==='garaj').length  * CELL * CELL;
+  const cFoisor = Object.values(state.cells).filter(v=>v==='foisor').length * CELL * CELL;
+  // Buildings din modul liber — folosim w×h doar dacă nu există celule de același tip
+  const bCabana = cCabana > 0 ? 0 : state.buildings.filter(b=>b.type==='cabana').reduce((s,b)=>s+b.w*b.h,0);
+  const bGaraj  = cGaraj  > 0 ? 0 : state.buildings.filter(b=>b.type==='garaj').reduce((s,b)=>s+b.w*b.h,0);
+  const bFoisor = cFoisor > 0 ? 0 : state.buildings.filter(b=>b.type==='foisor').reduce((s,b)=>s+b.w*b.h,0);
+  const total = bCabana + bGaraj + bFoisor + cCabana + cGaraj + cFoisor;
+  const apaArea=state.buildings.filter(b=>b.type==='apa').reduce((s,b)=>s+b.w*b.h,0)
+    + Object.values(state.cells).filter(v=>v==='apa').length*CELL*CELL;
+  const pot=(total/PARCEL_AREA*100).toFixed(1);
+  document.getElementById('stat-parcel').textContent=PARCEL_AREA.toFixed(0)+' m²';
+  const trees=state.trees.filter(t=>t.state==='keep').length;
+  const pomi=state.pomi.length;
+  document.getElementById('stat-built').textContent=total.toFixed(0)+' m²';
+  document.getElementById('stat-apa').textContent=apaArea.toFixed(0)+' m²';
+  document.getElementById('stat-trees').textContent=trees+' copaci, '+pomi+' pomi';
+  const pe=document.getElementById('stat-pot');
+  pe.textContent=pot+'%';
+  pe.style.color=parseFloat(pot)>25?'#ff5c5c':parseFloat(pot)>18?'#ff9a3c':'#a8b864';
+}
+
+// ══════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════
+function saveHistory(){
+  history.push(JSON.stringify(state));
+  if(history.length>50) history.shift();
+}
+function undo(){
+  if(!history.length) return;
+  state=JSON.parse(history.pop());
+  draw();
+}
+function clearAll(){
+  saveHistory();
+  state.buildings=[];
+  state.firepits=[];
+  state.pomi=[];
+  state.potecas=[];
+  state.cells={};
+  state.trees.forEach(t=>t.state='keep');
+  draw();
+}
+
+
+// ══════════════════════════════════════════
+// SAVE / LOAD
+// ══════════════════════════════════════════
+function saveProgress(){
+  try {
+    const data = {
+      version: 1,
+      parcel: 'micesti',
+      saved: new Date().toISOString(),
+      state: state
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+    a.download = `parcela-micesti-${ts}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showStatus('✓ Salvat!');
+  } catch(e) {
+    showStatus('✗ Eroare salvare');
+  }
+}
+
+function loadProgress(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if(!data.state) throw new Error('Invalid');
+      saveHistory();
+      state = data.state;
+      // Ensure all arrays exist (backwards compat)
+      if(!state.pomi) state.pomi = [];
+      if(!state.cells) state.cells = {};
+      if(!state.potecas) state.potecas = [];
+      if(!state.firepits) state.firepits = [];
+      draw();
+      const d = data.saved ? new Date(data.saved).toLocaleDateString('ro-RO') : '?';
+      showStatus('✓ Încărcat (' + d + ')');
+    } catch(err) {
+      showStatus('✗ Fișier invalid');
+    }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function showStatus(msg){
+  const el = document.getElementById('save-status');
+  el.textContent = msg;
+  setTimeout(()=>el.textContent='', 3000);
+}
+
+
+// ══════════════════════════════════════════
+// SELECT & EDIT
+// ══════════════════════════════════════════
+function selectObject(obj){
+  selectedObj = obj;
+  const panel = document.getElementById('panel-edit');
+  if(!obj || (!obj.w && !obj.h)){
+    panel.style.display='none';
+    return;
+  }
+  panel.style.display='block';
+  const title = document.getElementById('panel-edit-title');
+  title.textContent = 'Editează: ' + obj.type.charAt(0).toUpperCase() + obj.type.slice(1);
+  title.style.color = getColor(obj.type);
+  document.getElementById('edit-w').value = obj.w;
+  document.getElementById('edit-h').value = obj.h;
+  updateEditHint();
+}
+
+function updateEditHint(){
+  const w = parseFloat(document.getElementById('edit-w').value)||0;
+  const h = parseFloat(document.getElementById('edit-h').value)||0;
+  document.getElementById('edit-area-hint').textContent = (w*h).toFixed(1)+' m²';
+}
+
+document.getElementById('edit-w').addEventListener('input', ()=>{
+  if(!selectedObj) return;
+  const v = parseFloat(document.getElementById('edit-w').value);
+  if(v>0){ saveHistory(); selectedObj.w=v; updateEditHint(); draw(); }
+});
+document.getElementById('edit-h').addEventListener('input', ()=>{
+  if(!selectedObj) return;
+  const v = parseFloat(document.getElementById('edit-h').value);
+  if(v>0){ saveHistory(); selectedObj.h=v; updateEditHint(); draw(); }
+});
+
+// ══════════════════════════════════════════
+// PARCEL CONFIG MODAL
+// ══════════════════════════════════════════
+let parcelName = 'Parcela mea';
+let parcelLoc  = 'Loc / Jud';
+
+function openParcelConfig(){
+  document.getElementById('cfg-name').value = parcelName;
+  document.getElementById('cfg-loc').value  = parcelLoc;
+  document.getElementById('cfg-north').value = northAngle;
+  // Sync road buttons
+  document.querySelectorAll('.road-side-btn').forEach(b=>b.classList.remove('active-road'));
+  const rb=document.getElementById('road-'+roadSide);
+  if(rb) rb.classList.add('active-road');
+  peDraw(); peUpdateList();
+  document.getElementById('parcel-modal').style.display = 'flex';
+}
+function closeParcelConfig(){
+  document.getElementById('parcel-modal').style.display = 'none';
+}
+// cfg-w/cfg-h removed
+
+function applyNameOnly(){
+  parcelName = document.getElementById('cfg-name').value || parcelName;
+  parcelLoc  = document.getElementById('cfg-loc').value  || parcelLoc;
+  updateHeaderSub();
+  closeParcelConfig();
+}
+
+function applyParcelConfig(){
+  parcelName = document.getElementById('cfg-name').value || parcelName;
+  parcelLoc  = document.getElementById('cfg-loc').value  || parcelLoc;
+  const newNorth = parseFloat(document.getElementById('cfg-north').value);
+  if(!isNaN(newNorth)){ northAngle=newNorth; drawGrid(); }
+  // Apply parcel shape from editor if drawn
+  if(peFinished && pePoints.length>2){
+    applyParcelFromEditor();
+  } else if(pePoints.length===0){
+    // No shape drawn — keep existing parcel, just update name/north
+    drawGrid(); draw();
+  }
+  updateHeaderSub();
+  closeParcelConfig();
+}
+
+function updateHeaderSub(){
+  document.getElementById('header-sub').textContent =
+    parcelName + ' · ' + parcelLoc + ' · ' + PARCEL_AREA.toFixed(0) + ' m²';
+  document.title = 'Parcelă ' + parcelName + ' — Planner';
+}
+
+function rebuildCanvas(){
+  CW = Math.round(PARCEL_W * PX);
+  CH = Math.round(PARCEL_H * PX);
+  PARCEL_M = [
+    {x:0,y:0},{x:PARCEL_W,y:0},
+    {x:PARCEL_W,y:PARCEL_H},{x:0,y:PARCEL_H}
+  ];
+  PARCEL_PX = PARCEL_M.map(p=>({x:p.x*PX,y:p.y*PX}));
+  CW=Math.round(PARCEL_W*_dynPX);CH=Math.round(PARCEL_H*_dynPX);
+[gridC,terrC,mainC].forEach(c=>{c.width=CW;c.height=CH;});
+  wrap.style.width=CW+'px'; wrap.style.height=CH+'px';
+  // Reset state except trees (keep existing, clip out-of-bound ones visually)
+  saveHistory();
+  state.buildings  = [];
+  state.firepits   = [];
+  state.pomi       = [];
+  state.potecas    = [];
+  state.cells      = {};
+  state.trees      = INIT_TREES
+    .filter(t=>t.x<=PARCEL_W && t.y<=PARCEL_H)
+    .map((t,i)=>({
+      id:'t'+i, x:t.x, y:t.y,
+      r: 0.75+Math.random()*0.45,
+      state:'keep'
+    }));
+  drawGrid();
+  drawTerrain();
+  draw();
+}
+
+// Close modal on backdrop click
+document.getElementById('parcel-modal').addEventListener('click', function(e){
+  if(e.target===this) closeParcelConfig();
+});
+
+// ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// COMPASS — drawn in canvas, click on it opens overlay
+// ══════════════════════════════════════════
+function applyCompassAngle(deg){
+  northAngle = isNaN(deg) ? 0 : deg;
+  drawGrid();
+}
+
+function showCompassOverlay(){
+  const ov = document.getElementById('compassOverlay');
+  if(!ov) return;
+  const inp = document.getElementById('compassInput');
+  if(inp) inp.value = northAngle;
+  ov.style.display = 'flex';
+  if(inp) { inp.focus(); inp.select(); }
+}
+
+function hideCompassOverlay(){
+  const ov = document.getElementById('compassOverlay');
+  if(ov) ov.style.display = 'none';
+}
+
+// Returns true if mouse (in meters) is over compass area
+function compassHitTest(mx, my){
+  const r = 38; // hit radius în px (compass mărit)
+  const cx = CW - 44, cy = 44; // compass center în px
+  const mpx = mx * _dynPX, mpy = my * _dynPX;
+  return Math.hypot(mpx - cx, mpy - cy) < r;
+}
+
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){
+    hideCompassOverlay();
+    closeParcelConfig();
+  }
+});
+
+
+// ══════════════════════════════════════════
+// ROAD SIDE
+// ══════════════════════════════════════════
+function setRoadSide(side){
+  roadSide = side;
+  document.querySelectorAll('.road-side-btn').forEach(b=>b.classList.remove('active-road'));
+  const btn = document.getElementById('road-'+side);
+  if(btn) btn.classList.add('active-road');
+  drawGrid();
+}
+
+// ══════════════════════════════════════════
+// NORTH PREVIEW (in modal)
+// ══════════════════════════════════════════
+function previewNorth(deg){
+  northAngle = isNaN(deg) ? 0 : deg;
+  drawGrid();
+}
+
+// ══════════════════════════════════════════
+// PARCEL EDITOR
+// ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// PARCEL EDITOR — view 100% stabil
+// ══════════════════════════════════════════
+// ══════════════════════════════════════════
+// PARCEL EDITOR — schematic, fără proporții
+// Coordonate interne în px canvas. Lungimile în metri sunt metadata.
+// ══════════════════════════════════════════
+const PE_W = 420, PE_H = 240;
+
+// ── State ──
+let pePoints   = [];   // [{cx,cy}] px în canvas
+let peLengths  = [];   // metri per segment
+let peFinished = false;
+let peSelSeg   = null;
+let peDragVtx  = null;
+let peMDownPos = null;
+let peHover    = null; // {cx,cy}
+
+// ── Snap H/V ──
+function peSnapHV(cx, cy, refPt) {
+  if (!refPt) return {cx, cy};
+  const dx = Math.abs(cx - refPt.cx), dy = Math.abs(cy - refPt.cy);
+  const thr = 14;
+  if (dy < thr && dx > dy) return {cx, cy: refPt.cy};
+  if (dx < thr && dy > dx) return {cx: refPt.cx, cy};
+  return {cx, cy};
+}
+
+// ── Hit tests ──
+function peHitVtx(cx, cy) {
+  for (let i = 0; i < pePoints.length; i++) {
+    const p = pePoints[i];
+    if (Math.hypot(cx-p.cx, cy-p.cy) < 11) return i;
+  }
+  return null;
+}
+function peHitSeg(cx, cy) {
+  const n = peFinished ? pePoints.length : pePoints.length - 1;
+  for (let i = 0; i < n; i++) {
+    const a = pePoints[i], b = pePoints[(i+1) % pePoints.length];
+    if (pePtSegDist(cx, cy, a, b) < 9) return i;
+  }
+  return null;
+}
+function pePtSegDist(px, py, a, b) {
+  const dx=b.cx-a.cx, dy=b.cy-a.cy, l2=dx*dx+dy*dy;
+  if (l2===0) return Math.hypot(px-a.cx, py-a.cy);
+  const t = Math.max(0, Math.min(1, ((px-a.cx)*dx+(py-a.cy)*dy)/l2));
+  return Math.hypot(px-(a.cx+t*dx), py-(a.cy+t*dy));
+}
+
+// ── Auto-length from px distance (1px ≈ 1m placeholder) ──
+function peCalcLen(i) {
+  const a = pePoints[i], b = pePoints[(i+1) % pePoints.length];
+  return Math.max(0.5, Math.round(Math.hypot(b.cx-a.cx, b.cy-a.cy) * 10) / 10);
+}
+
+// ── Mouse ──
+function peMouseDown(e) {
+  if (e.button !== 0) return;
+  const {cx, cy} = peGetXY(e);
+  peMDownPos = {cx, cy};
+  peHideInput();
+  if (peFinished) {
+    const vi = peHitVtx(cx, cy);
+    if (vi !== null) { peDragVtx = vi; e.currentTarget.style.cursor = 'grabbing'; }
+  }
+}
+
+function peMouseMove(e) {
+  let {cx, cy} = peGetXY(e);
+  // Snap H/V față de ultimul punct (sau vertex drag)
+  const ref = peDragVtx !== null ? pePoints[peDragVtx] :
+              (!peFinished && pePoints.length > 0 ? pePoints[pePoints.length-1] : null);
+  ({cx, cy} = peSnapHV(cx, cy, ref));
+  peHover = {cx, cy};
+  if (peDragVtx !== null) {
+    pePoints[peDragVtx] = {cx, cy};
+    peDraw(); return;
+  }
+  if (peFinished) {
+    e.currentTarget.style.cursor = peHitVtx(cx,cy) !== null ? 'grab' : 'default';
+  } else if (pePoints.length > 0) {
+    peDraw();
+  }
+}
+
+function peMouseUp(e) {
+  if (e.button !== 0) return;
+  let {cx, cy} = peGetXY(e);
+  if (peDragVtx !== null) {
+    peDragVtx = null;
+    e.currentTarget.style.cursor = 'default';
+    peUpdateList(); return;
+  }
+  const moved = peMDownPos && Math.hypot(cx-peMDownPos.cx, cy-peMDownPos.cy) > 5;
+  peMDownPos = null;
+  if (moved) return;
+  // Snap H/V
+  const ref = !peFinished && pePoints.length > 0 ? pePoints[pePoints.length-1] : null;
+  ({cx, cy} = peSnapHV(cx, cy, ref));
+  // Click su segment → input
+  if (pePoints.length >= 2) {
+    const si = peHitSeg(cx, cy);
+    if (si !== null) { peShowInput(e.currentTarget, si); return; }
+  }
+  // Click pe primul punct → închide
+  if (!peFinished && pePoints.length > 2) {
+    if (Math.hypot(cx-pePoints[0].cx, cy-pePoints[0].cy) < 14) {
+      peClose(); return;
+    }
+  }
+  if (peFinished) return;
+  // Adaugă punct
+  pePoints.push({cx, cy});
+  if (pePoints.length >= 2) {
+    const i = pePoints.length - 2;
+    peLengths[i] = peCalcLen(i);
+  }
+  peDraw(); peUpdateList();
+  // Auto-popup pe noul segment
+  if (pePoints.length >= 2) peShowInput(e.currentTarget, pePoints.length-2);
+}
+
+function peMouseLeave() { peHover = null; peDragVtx = null; peDraw(); }
+
+function peGetXY(e) {
+  const r = e.currentTarget.getBoundingClientRect();
+  return {cx: e.clientX - r.left, cy: e.clientY - r.top};
+}
+
+// ── Input dimensiune ──
+function peShowInput(canvas, segIdx) {
+  peSelSeg = segIdx;
+  const el = document.getElementById('pe-seg-input'); if (!el) return;
+  const a = pePoints[segIdx], b = pePoints[(segIdx+1) % pePoints.length];
+  const len = peLengths[segIdx] !== undefined ? peLengths[segIdx] : peCalcLen(segIdx);
+  const mx = (a.cx + b.cx) / 2, my = (a.cy + b.cy) / 2;
+  el.style.left = Math.min(Math.max(mx-80, 0), PE_W-195) + 'px';
+  el.style.top  = Math.min(Math.max(my-34, 0), PE_H-50)  + 'px';
+  el.style.display = 'flex'; el.style.flexDirection = 'row';
+  const inp = document.getElementById('pe-seg-val');
+  if (inp) { inp.value = len; inp.focus(); inp.select(); }
+}
+function peHideInput() {
+  const el = document.getElementById('pe-seg-input');
+  if (el) el.style.display = 'none';
+  peSelSeg = null;
+}
+// Aliasuri pentru HTML
+const peHideSegInput = peHideInput;
+function peApplySegInput() {
+  const inp = document.getElementById('pe-seg-val'); if (!inp || peSelSeg === null) return;
+  const v = parseFloat(inp.value);
+  if (v > 0) { peLengths[peSelSeg] = v; }
+  peHideInput(); peDraw(); peUpdateList();
+}
+
+// ── Undo / Clear / Close ──
+function parcelEditorUndo(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (peFinished) { peFinished = false; }
+  else if (pePoints.length > 0) { pePoints.pop(); peLengths.pop(); }
+  peHideInput(); peDraw(); peUpdateList();
+}
+function parcelEditorClear() {
+  pePoints = []; peLengths = []; peFinished = false; peHover = null;
+  peHideInput(); peDraw(); peUpdateList();
+}
+function parcelEditorFinish() {
+  if (pePoints.length < 3) return;
+  // Calculează ultimul segment (de la ultimul colț la primul)
+  // folosind lungimile REALE ale celorlalte segmente + unghiurile din forma vizuală
+  // Reconstruim poligonul real din primele n-1 segmente
+  const n = pePoints.length;
+  let x = 0, y = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const a = pePoints[i], b = pePoints[(i + 1) % n];
+    const ang = Math.atan2((b.cy - a.cy), b.cx - a.cx);  // Y inversat corectat
+    const len = peLengths[i] || peCalcLen(i);
+    x += Math.cos(ang) * len;
+    y += Math.sin(ang) * len;
+  }
+  // Distanța de la ultimul punct reconstruit la origine (0,0) = lungimea ultimului segment
+  const lastLen = Math.round(Math.hypot(x, y) * 10) / 10;
+  peLengths[n - 1] = Math.max(0.5, lastLen);
+  peFinished = true; peDraw(); peUpdateList();
+}
+function peClose() { parcelEditorFinish(); }
+
+// ── Draw ──
+function peDraw() {
+  const canvas = document.getElementById('parcel-editor'); if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, PE_W, PE_H);
+  ctx.fillStyle = '#060a04'; ctx.fillRect(0, 0, PE_W, PE_H);
+
+  // Grid subtil
+  ctx.strokeStyle = 'rgba(168,184,100,0.08)'; ctx.lineWidth = 0.5;
+  for (let x = 0; x < PE_W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,PE_H); ctx.stroke(); }
+  for (let y = 0; y < PE_H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(PE_W,y); ctx.stroke(); }
+
+  if (pePoints.length === 0) return;
+
+  const pts = pePoints;
+
+  // Fill dacă închis
+  if (peFinished && pts.length > 2) {
+    ctx.beginPath();
+    pts.forEach((p,i) => i===0 ? ctx.moveTo(p.cx,p.cy) : ctx.lineTo(p.cx,p.cy));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(168,184,100,0.07)'; ctx.fill();
+  }
+
+  // Segmente + etichete
+  const nSeg = peFinished ? pts.length : pts.length - 1;
+  for (let i = 0; i < nSeg; i++) {
+    const a = pts[i], b = pts[(i+1) % pts.length];
+    const sel = peSelSeg === i;
+    ctx.strokeStyle = sel ? '#ffd166' : '#a8b864';
+    ctx.lineWidth = sel ? 2.5 : 1.8;
+    ctx.beginPath(); ctx.moveTo(a.cx,a.cy); ctx.lineTo(b.cx,b.cy); ctx.stroke();
+    // Număr segment + lungime pe linie
+    const len = peLengths[i] !== undefined ? peLengths[i] : peCalcLen(i);
+    const mx = (a.cx+b.cx)/2, my = (a.cy+b.cy)/2;
+    const ang = Math.atan2(b.cy-a.cy, b.cx-a.cx);
+    ctx.save();
+    ctx.translate(mx, my); ctx.rotate(ang);
+    ctx.fillStyle = 'rgba(6,10,4,0.9)'; ctx.fillRect(-32, -10, 64, 19);
+    ctx.fillStyle = sel ? '#ffd166' : '#c8d880';
+    ctx.font = 'bold 13px Space Mono,monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText((i+1) + ' · ' + len + 'm', 0, 0);
+    ctx.restore();
+  }
+
+  // Ghost segment
+  if (!peFinished && peHover && pts.length > 0) {
+    const last = pts[pts.length-1];
+    ctx.strokeStyle = 'rgba(168,184,100,0.28)'; ctx.lineWidth = 1;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.moveTo(last.cx,last.cy); ctx.lineTo(peHover.cx,peHover.cy); ctx.stroke();
+    ctx.setLineDash([]);
+    // Snap indicator — linie guida H sau V
+    const ref = pts[pts.length-1];
+    const dx = Math.abs(peHover.cx - ref.cx), dy = Math.abs(peHover.cy - ref.cy);
+    if (dy < 14 && dx > dy) {
+      ctx.strokeStyle = 'rgba(255,209,102,0.4)'; ctx.lineWidth = 0.8;
+      ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.moveTo(0, ref.cy); ctx.lineTo(PE_W, ref.cy); ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (dx < 14 && dy > dx) {
+      ctx.strokeStyle = 'rgba(255,209,102,0.4)'; ctx.lineWidth = 0.8;
+      ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.moveTo(ref.cx, 0); ctx.lineTo(ref.cx, PE_H); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Close snap ring
+    if (pts.length > 2 && Math.hypot(peHover.cx-pts[0].cx, peHover.cy-pts[0].cy) < 14) {
+      ctx.strokeStyle = '#a8b864'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(pts[0].cx, pts[0].cy, 11, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+
+  // Vertices
+  pts.forEach((p,i) => {
+    ctx.fillStyle = i===0 ? '#a8b864' : '#567040';
+    ctx.beginPath(); ctx.arc(p.cx, p.cy, i===0 ? 6 : 4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#a8b864'; ctx.lineWidth = 1; ctx.stroke();
+  });
+
+  // Hover dot
+  if (!peFinished && peHover) {
+    ctx.fillStyle = 'rgba(168,184,100,0.55)';
+    ctx.beginPath(); ctx.arc(peHover.cx, peHover.cy, 4, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ── Lista segmente ──
+function peUpdateList() {
+  const el  = document.getElementById('parcel-segments');
+  const ael = document.getElementById('parcel-editor-area');
+  if (!el) return;
+  const nSeg = peFinished ? pePoints.length : pePoints.length - 1;
+  if (nSeg <= 0) {
+    el.innerHTML = '<div style="font-size:11px;color:#667755;font-family:Space Mono,monospace;padding:6px 4px;">Niciun segment</div>';
+    if (ael) ael.innerHTML = '';
+    return;
+  }
+  // Construim lista folosind DOM, nu innerHTML cu var() care nu funcționează
+  el.innerHTML = '';
+  let perim = 0;
+  for (let i = 0; i < nSeg; i++) {
+    const len = peLengths[i] !== undefined ? peLengths[i] : peCalcLen(i);
+    perim += len;
+    const sel = peSelSeg === i;
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:7px 4px;border-bottom:1px solid #263420;' + (sel ? 'background:rgba(168,184,100,0.08);' : '');
+    const num = document.createElement('span');
+    num.style.cssText = 'font-size:15px;color:' + (sel?'#ffd166':'#a8b864') + ';font-family:Space Mono,monospace;width:22px;flex-shrink:0;font-weight:bold;';
+    num.textContent = (i+1);
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.value = len; inp.min = '0.5'; inp.step = '0.5';
+    inp.style.cssText = 'width:72px;background:#0a0c08;border:1px solid ' + (sel?'#a8b864':'#344828') + ';color:#f0ece0;font-family:Space Mono,monospace;font-size:15px;padding:5px 7px;';
+    const idx = i;
+    inp.onchange = function(){ peLengths[idx]=parseFloat(this.value)||peLengths[idx]; peDraw(); peUpdateList(); };
+    inp.onfocus = function(){ peSelSeg=idx; peDraw(); };
+    inp.onblur  = function(){ peSelSeg=null; peDraw(); };
+    const unit = document.createElement('span');
+    unit.style.cssText = 'font-size:15px;color:#9ab070;font-family:Space Mono,monospace;';
+    unit.textContent = 'm';
+    row.appendChild(num); row.appendChild(inp); row.appendChild(unit);
+    el.appendChild(row);
+  }
+  // Perimetru + suprafată
+  if (ael) {
+    // Suprafata shoelace din coords px, scalata la metri via primul segment
+    let areaTxt = '';
+    if (peFinished && pePoints.length > 2) {
+      let areaPx = 0;
+      for (let i = 0; i < pePoints.length; i++) {
+        const a = pePoints[i], b = pePoints[(i+1)%pePoints.length];
+        areaPx += a.cx*b.cy - b.cx*a.cy;
+      }
+      areaPx = Math.abs(areaPx/2);
+      // Scale: 1px = (lungime reala segment 0) / (lungime px segment 0) metri
+      let scaleM = 1;
+      if (pePoints.length >= 2 && peLengths[0] > 0) {
+        const a = pePoints[0], b = pePoints[1];
+        const lenPx = Math.max(1, Math.hypot(b.cx-a.cx, b.cy-a.cy));
+        scaleM = peLengths[0] / lenPx;
+      }
+      const areaSqM = areaPx * scaleM * scaleM;
+      ael.innerHTML = 'P: ' + perim.toFixed(1) + ' m<br>S: ' + areaSqM.toFixed(0) + ' m²';
+    } else {
+      ael.innerHTML = '<span style="font-size:14px;">P: ' + perim.toFixed(1) + ' m</span>';
+    }
+  }
+}
+
+// ── Apply to main plan ──
+function applyParcelFromEditor() {
+  if (!peFinished || pePoints.length < 3) return;
+  // Scalează coordonatele px la metri reali
+  // Bounding box px
+  const cxs = pePoints.map(p=>p.cx), cys = pePoints.map(p=>p.cy);
+  const minCx = Math.min(...cxs), maxCx = Math.max(...cxs);
+  const minCy = Math.min(...cys), maxCy = Math.max(...cys);
+  const rangeCx = maxCx - minCx || 1;
+  const rangeCy = maxCy - minCy || 1;
+  // Bounding box metri (din lungimi reale)
+  // Calcul mai simplu: scalăm px direct la metri folosind perimetrul
+  const perimPx = pePoints.reduce((s,p,i)=>{
+    const b=pePoints[(i+1)%pePoints.length];
+    return s+Math.hypot(b.cx-p.cx,b.cy-p.cy);
+  },0);
+  const perimM = peLengths.slice(0,pePoints.length).reduce((s,v)=>s+(v||0),0);
+  const scale = perimM / (perimPx || 1); // metri per px
+  // Convertim fiecare punct din px în metri, normalizat la (0,0)
+  const realPts = pePoints.map(p=>({
+    x: (p.cx - minCx) * scale,
+    y: (p.cy - minCy) * scale
+  }));
+  const minX = Math.min(...realPts.map(p=>p.x));
+  const minY = Math.min(...realPts.map(p=>p.y));
+  const maxX = Math.max(...realPts.map(p=>p.x));
+  const maxY = Math.max(...realPts.map(p=>p.y));
+  const normPts = realPts.map(p=>({x:p.x-minX, y:p.y-minY}));
+
+  PARCEL_M = normPts;
+  PARCEL_W = maxX - minX;
+  PARCEL_H = maxY - minY;
+  PARCEL_AREA = Math.abs(realPts.reduce((s,p,i)=>{
+    const b=realPts[(i+1)%realPts.length]; return s+p.x*b.y-b.x*p.y;
+  },0))/2;
+  // Resetează state-ul de clădiri (parcela s-a schimbat)
+  saveHistory();
+  state.buildings=[]; state.firepits=[]; state.pomi=[];
+  state.potecas=[]; state.cells={};
+  state.trees = INIT_TREES
+    .filter(t=>t.x<=PARCEL_W&&t.y<=PARCEL_H)
+    .map((t,i)=>({id:'t'+i,x:t.x,y:t.y,r:0.75+Math.random()*0.45,state:'keep'}));
+  // Redesenează
+  fitToViewport();
+  updateHeaderSub();
+}
+
+
+
+
+
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+drawGrid();
+drawTerrain();
+draw();
+// Fit canvas to viewport on load
+
+// Re-fit on window resize
+
+
+
+// ══════════════════════════════════════════════════════
+// INTERIOR EDITOR
+// ══════════════════════════════════════════════════════
+
+// ── Tab switching ──
+function switchTab(tab){
+  document.querySelectorAll('.tab-pane').forEach(p=>{
+    p.classList.remove('active');
+    p.style.display='none';
+  });
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const pane = document.getElementById('tab-'+tab);
+  pane.classList.add('active');
+  pane.style.display='flex';
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    if(b.getAttribute('onclick').includes("'"+tab+"'")) b.classList.add('active');
+  });
+  if(tab==='interior'){ syncCabinDims(); setTimeout(()=>intFitToViewport(),30); }
+  if(tab==='ansamblu'){ setTimeout(()=>fitToViewport(),30); }
+}
+
+// ── Config ──
+const INT_CELL = 0.25;   // meters per cell
+const INT_PX   = 32;     // initial px per meter (overridden by fit)
+let   _intDynPX = INT_PX;
+const int_m2p  = v => v * _intDynPX;
+const int_p2m  = v => v / _intDynPX;
+const int_snap = v => Math.floor(v / INT_CELL) * INT_CELL;
+
+let intW = 8, intH = 10;   // cabin dimensions in meters
+let intCW = intW * INT_PX, intCH = intH * INT_PX;
+
+// ── Canvases ──
+const intGridC = document.getElementById('int-grid');
+const intMainC = document.getElementById('int-main');
+const intWrap  = document.getElementById('intCanvasWrap');
+const igCtx    = intGridC.getContext('2d');
+const imCtx    = intMainC.getContext('2d');
+
+function resizeIntCanvas(){
+  intW = parseFloat(document.getElementById('int-cw').value)||8;
+  intH = parseFloat(document.getElementById('int-ch').value)||10;
+  // intFitToViewport will compute correct pixel size
+  intFitToViewport();
+  intUpdateStats();
+}
+
+// ── State ──
+let intState = { cells:{}, furniture:[], doors:[], windows:[] };
+let intHistory = [];
+let intActiveTool = 'room';
+let intActiveRoom = 'living';
+let intActiveFurn  = 'pat_dublu';
+let intCurrentRotation = 0; // 0, 90, 180, 270
+let intDoorSide = 'right'; // hinge: left | right
+let intDoorDir  = 'in';    // opening: in | out
+let intWindowW  = 1.0;     // window width in meters
+let intMouseDown = false;
+let intRMouseDown = false;
+let intDragObj = null, intDragOx = 0, intDragOy = 0;
+let intGhostPos = null;
+let intPaintedCells = new Set();
+
+// ── Room / furniture colors & sizes ──
+const ROOM_COLORS = {
+  living:    '#4a9eff', dormitor:'#c084fc', bucatarie:'#ff9a3c',
+  baie:      '#5dba6a', hol:     '#ffd166', birou:    '#f4a261',
+  terasa:    '#a8b864', depozit: '#888888',
+  __wall__:  '#e0dcc8', __door__: '#c8a060',
+};
+const FURN_DEFS = {
+  pat_dublu:   {w:1.8, h:2.0, label:'180×200',   color:'#8899bb'},
+  pat_single:  {w:0.9, h:2.0, label:'Pat 1P',   color:'#6677aa'},
+  canapea:     {w:2.2, h:0.9, label:'Canapea',  color:'#aa8866'},
+  masa_dining: {w:1.2, h:0.8, label:'Masă',     color:'#c4a060'},
+  birou_mob:   {w:1.2, h:0.6, label:'Birou',    color:'#a0b880'},
+  dulap_mare:  {w:2.0, h:0.6, label:'Dulap M',  color:'#998877'},
+  dulap_mic:   {w:1.0, h:0.5, label:'Dulap m',  color:'#887766'},
+  wc:          {w:0.5, h:0.7, label:'WC',        color:'#5dba6a', round:true},
+  dus:         {w:0.9, h:0.9, label:'Duș',       color:'#4a9eff', configurable:true},
+  cada:        {w:0.6, h:1.7, label:'Cadă',      color:'#5588cc'},
+  tv:          {w:1.2, h:0.1, label:'TV',          color:'#334455'},
+  lavoar:      {w:0.6, h:0.5, label:'Lavoar',   color:'#6ab8d0', round:true},
+  frigider:    {w:0.6, h:0.6, label:'Frigider',  color:'#99aabb'},
+  aragaz:      {w:0.6, h:0.6, label:'Aragaz',   color:'#cc8844'},
+  scaun:       {w:0.5, h:0.5, label:'Scaun',    color:'#b8a080', round:true},
+  fotoliu:     {w:0.9, h:0.9, label:'Fotoliu',  color:'#c09060'},
+};
+
+// ── Sync cabin dims from site plan ──
+function syncCabinDims(){
+  const cabane = state.buildings.filter(b=>b.type==='cabana');
+  const info = document.getElementById('int-cabin-dims');
+  if(cabane.length > 0){
+    const c = cabane[0];
+    document.getElementById('int-cw').value = c.w;
+    document.getElementById('int-ch').value = c.h;
+    info.textContent = c.w + ' × ' + c.h + ' m  (din plan ansamblu)';
+    info.style.color = '#4a9eff';
+  } else {
+    // Caută cabana desenată în modul celulă
+    const cabCells = Object.entries(state.cells).filter(([k,v])=>v==='cabana');
+    if(cabCells.length > 0){
+      const xs = cabCells.map(([k])=>parseFloat(k.split('_')[0]));
+      const ys = cabCells.map(([k])=>parseFloat(k.split('_')[1]));
+      const w = Math.round((Math.max(...xs) - Math.min(...xs) + CELL) * 10) / 10;
+      const h = Math.round((Math.max(...ys) - Math.min(...ys) + CELL) * 10) / 10;
+      document.getElementById('int-cw').value = w;
+      document.getElementById('int-ch').value = h;
+      info.textContent = w + ' × ' + h + ' m  (din celule)';
+      info.style.color = '#4a9eff';
+    } else {
+      info.textContent = 'Nicio cabană în plan — setați manual';
+      info.style.color = 'var(--text-dim)';
+    }
+  }
+  resizeIntCanvas();
+}
+
+// ── Draw grid ──
+function intDrawGrid(){
+  igCtx.clearRect(0,0,intCW,intCH);
+  igCtx.fillStyle = '#0c0e0a';
+  igCtx.fillRect(0,0,intCW,intCH);
+
+  // 0.25m fine grid
+  igCtx.strokeStyle = 'rgba(168,184,100,0.18)';
+  igCtx.lineWidth = 0.4;
+  for(let x=0;x<=intCW;x+=int_m2p(INT_CELL)){intLine(igCtx,x,0,x,intCH);}
+  for(let y=0;y<=intCH;y+=int_m2p(INT_CELL)){intLine(igCtx,0,y,intCW,y);}
+
+  // 1m grid
+  igCtx.strokeStyle = 'rgba(168,184,100,0.38)';
+  igCtx.lineWidth = 0.7;
+  for(let x=0;x<=intCW;x+=int_m2p(1)){intLine(igCtx,x,0,x,intCH);}
+  for(let y=0;y<=intCH;y+=int_m2p(1)){intLine(igCtx,0,y,intCW,y);}
+
+  // Outline
+  igCtx.strokeStyle = '#a8b864';
+  igCtx.lineWidth = 2;
+  igCtx.shadowColor = 'rgba(168,184,100,0.4)';
+  igCtx.shadowBlur = 6;
+  igCtx.strokeRect(0,0,intCW,intCH);
+  igCtx.shadowBlur = 0;
+
+  // Axis labels — mai mari, X jos, Y dreapta
+  igCtx.font = 'bold 11px Space Mono,monospace';
+  igCtx.textAlign = 'center'; igCtx.textBaseline = 'bottom';
+  for(let i=0;i<=intW;i++){
+    const px = int_m2p(i);
+    igCtx.fillStyle = 'rgba(8,12,6,0.8)'; igCtx.fillRect(px-14, intCH-15, 28, 13);
+    igCtx.fillStyle = 'rgba(180,220,120,0.95)'; igCtx.fillText(i+'m', px, intCH-2);
+  }
+  igCtx.textAlign = 'left'; igCtx.textBaseline = 'middle';
+  for(let i=0;i<=intH;i++){
+    const py = int_m2p(i);
+    igCtx.fillStyle = 'rgba(8,12,6,0.8)'; igCtx.fillRect(intCW-30, py-7, 28, 13);
+    igCtx.fillStyle = 'rgba(180,220,120,0.95)'; igCtx.fillText(i+'m', intCW-28, py);
+  }
+  igCtx.textAlign = 'left'; igCtx.textBaseline = 'alphabetic';
+
+  // Scale bar — mai mare, stânga-jos
+  const sb=int_m2p(1), sx=4, sy=intCH-20;
+  igCtx.fillStyle = 'rgba(8,12,6,0.8)'; igCtx.fillRect(sx-3, sy-12, sb+6, 20);
+  igCtx.strokeStyle='#c8d880'; igCtx.lineWidth=2;
+  intLine(igCtx,sx,sy,sx+sb,sy);
+  intLine(igCtx,sx,sy-5,sx,sy+5);
+  intLine(igCtx,sx+sb,sy-5,sx+sb,sy+5);
+  igCtx.fillStyle='#d8e890'; igCtx.font='bold 11px Space Mono,monospace';
+  igCtx.textAlign='center'; igCtx.textBaseline='bottom';
+  igCtx.fillText('1m', sx+sb/2, sy-3);
+  igCtx.textAlign='left'; igCtx.textBaseline='alphabetic';
+}
+
+function intLine(ctx,x1,y1,x2,y2){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+
+// ── Draw main ──
+// ── Desenează forma cabānei din celulele de pe planul ansamblu ──
+function intDrawCabinShape(){
+  const cabCells = Object.entries(state.cells).filter(([k,v])=>v==='cabana');
+  // Dacă nu există celule de cabană, folosim dreptunghiul simplu (fallback)
+  if(cabCells.length === 0){
+    // Fallback: contur dreptunghiular simplu
+    imCtx.save();
+    imCtx.strokeStyle='rgba(74,158,255,0.25)';
+    imCtx.lineWidth=1;
+    imCtx.setLineDash([4,4]);
+    imCtx.strokeRect(0,0,intCW,intCH);
+    imCtx.setLineDash([]);
+    imCtx.restore();
+    return;
+  }
+  // Bounding box al celulelor
+  const xs = cabCells.map(([k])=>parseFloat(k.split('_')[0]));
+  const ys = cabCells.map(([k])=>parseFloat(k.split('_')[1]));
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  const rangeX = Math.max(...xs) - minX + 0.5;
+  const rangeY = Math.max(...ys) - minY + 0.5;
+  // Scale: mapăm celulele la canvas-ul interior
+  const scaleX = intCW / rangeX;
+  const scaleY = intCH / rangeY;
+  const sc = Math.min(scaleX, scaleY);
+  // Offset de centrare
+  const offX = (intCW - rangeX * sc) / 2;
+  const offY = (intCH - rangeY * sc) / 2;
+  const cellPx = 0.5 * sc; // dimensiunea unei celule în px pe canvas interior
+
+  imCtx.save();
+  // Umplutură pentru fiecare celulă
+  imCtx.fillStyle = 'rgba(74,158,255,0.06)';
+  cabCells.forEach(([k])=>{
+    const [cx,cy] = k.split('_').map(Number);
+    const px = offX + (cx - minX) * sc;
+    const py = offY + (cy - minY) * sc;
+    imCtx.fillRect(px, py, cellPx, cellPx);
+  });
+  // Contur exterior — desenăm marginile unde celula nu are vecin de același tip
+  imCtx.strokeStyle = 'rgba(74,158,255,0.45)';
+  imCtx.lineWidth = 1.5;
+  const cellSet = new Set(cabCells.map(([k])=>k));
+  cabCells.forEach(([k])=>{
+    const [cx,cy] = k.split('_').map(Number);
+    const px = offX + (cx - minX) * sc;
+    const py = offY + (cy - minY) * sc;
+    const neighbors = [
+      {dx:0,  dy:-0.5, x1:px,        y1:py,        x2:px+cellPx, y2:py},
+      {dx:0,  dy: 0.5, x1:px,        y1:py+cellPx, x2:px+cellPx, y2:py+cellPx},
+      {dx:-0.5,dy:0,   x1:px,        y1:py,        x2:px,        y2:py+cellPx},
+      {dx: 0.5,dy:0,   x1:px+cellPx, y1:py,        x2:px+cellPx, y2:py+cellPx},
+    ];
+    neighbors.forEach(({dx,dy,x1,y1,x2,y2})=>{
+      const nk = (Math.round((cx+dx)*100)/100)+'_'+(Math.round((cy+dy)*100)/100);
+      if(!cellSet.has(nk)){
+        imCtx.beginPath(); imCtx.moveTo(x1,y1); imCtx.lineTo(x2,y2); imCtx.stroke();
+      }
+    });
+  });
+  imCtx.restore();
+}
+
+function intDraw(){
+  imCtx.clearRect(0,0,intCW,intCH);
+
+  // ── Forma cabanei din celule (overlay vizual) ──
+  intDrawCabinShape();
+
+  // Room cells + walls + doors
+  for(const [key,room] of Object.entries(intState.cells)){
+    const [cx,cy]=key.split('_').map(Number);
+    const col = ROOM_COLORS[room];
+    if(!col) continue;
+    const px=int_m2p(cx), py=int_m2p(cy), ps=int_m2p(INT_CELL);
+    if(room==='__wall__'){
+      // Solid wall — thick filled cell
+      imCtx.fillStyle = '#d0ccc0';
+      imCtx.fillRect(px,py,ps,ps);
+      imCtx.fillStyle = 'rgba(100,90,80,0.3)';
+      imCtx.fillRect(px+1,py+1,ps-2,ps-2);
+    } else if(room==='__door__'){
+      // Door — arc symbol
+      imCtx.fillStyle = 'rgba(200,160,96,0.25)';
+      imCtx.fillRect(px,py,ps,ps);
+      imCtx.strokeStyle = '#c8a060';
+      imCtx.lineWidth = 1.5;
+      imCtx.strokeRect(px,py,ps,ps);
+      // Arc
+      imCtx.beginPath();
+      imCtx.arc(px, py+ps, ps, -Math.PI/2, 0);
+      imCtx.stroke();
+    } else {
+      imCtx.fillStyle = col + '35';
+      imCtx.fillRect(px,py,ps,ps);
+    }
+  }
+
+  // Room borders — draw contour lines where adjacent cells differ
+  intDrawRoomBorders();
+
+  // Furniture
+  intState.furniture.forEach(f => intDrawFurn(f, false));
+  intState.doors.forEach(d => intDrawDoor(d, false));
+  intState.windows.forEach(w => intDrawWindow(w, false));
+
+  // Room labels + stats update (labels drawn here, on top of everything)
+  intUpdateStats();
+
+  // Ghost preview
+  if(intGhostPos && !intMouseDown){
+    if(intActiveTool==='furn') intDrawFurnGhost(intGhostPos);
+    if(intActiveTool==='door'){
+      // Door visual: 0.75m wide × INT_CELL thick (plus arc extends INT_CELL beyond)
+      // Center cursor on middle of the door width and thickness
+      const rot = intCurrentRotation;
+      const isSwapped = (rot===90||rot===270);
+      const visW = isSwapped ? INT_CELL : 0.75;
+      const visH = isSwapped ? 0.75 : INT_CELL;
+      const {x,y} = intCenterOn(intGhostPos.x, intGhostPos.y, visW, visH);
+      intDrawDoor({x, y, rot, side:intDoorSide, dir:intDoorDir}, true);
+    }
+    if(intActiveTool==='window'){
+      const ww = intWindowW, wh = INT_CELL;
+      const isSwapped = (intCurrentRotation===90||intCurrentRotation===270);
+      const visW = isSwapped ? wh : ww;
+      const visH = isSwapped ? ww : wh;
+      const {x,y} = intCenterOn(intGhostPos.x, intGhostPos.y, visW, visH);
+      intDrawWindow({x, y, rot:intCurrentRotation, w:intWindowW}, true);
+    }
+    if(intActiveTool==='room' || intActiveTool==='eraser' || intActiveTool==='wall'){
+      const cx=Math.floor(intGhostPos.x/INT_CELL)*INT_CELL;
+      const cy=Math.floor(intGhostPos.y/INT_CELL)*INT_CELL;
+      const ps=int_m2p(INT_CELL);
+      imCtx.save();
+      // Culoare în funcție de unealtă
+      let ghostCol = 'rgba(168,184,100,';
+      if(intActiveTool==='wall') ghostCol = 'rgba(208,204,192,';
+      else if(intActiveTool==='eraser') ghostCol = 'rgba(255,92,92,';
+      else if(intActiveTool==='room') ghostCol = 'rgba(' + ROOM_COLORS[intActiveRoom]?.slice(1).match(/../g).map(h=>parseInt(h,16)).join(',') + ',' || '168,184,100,';
+      imCtx.fillStyle = ghostCol + '0.15)';
+      imCtx.strokeStyle = ghostCol + '0.7)';
+      imCtx.lineWidth=1;
+      imCtx.fillRect(int_m2p(cx),int_m2p(cy),ps,ps);
+      imCtx.strokeRect(int_m2p(cx),int_m2p(cy),ps,ps);
+      imCtx.restore();
+    }
+  }
+
+}
+
+function intDrawRoomBorders(){
+  const drawn = new Set();
+  for(const [key,room] of Object.entries(intState.cells)){
+    const [cx,cy]=key.split('_').map(Number);
+    const neighbors = [
+      {dx:INT_CELL,dy:0,side:'right'},
+      {dx:0,dy:INT_CELL,side:'bottom'},
+    ];
+    for(const {dx,dy,side} of neighbors){
+      const nk = (cx+dx)+'_'+(cy+dy);
+      const nr = intState.cells[nk];
+      if(nr !== room){
+        const lineKey = key+':'+side;
+        if(!drawn.has(lineKey)){
+          drawn.add(lineKey);
+          imCtx.save();
+          imCtx.strokeStyle = ROOM_COLORS[room] || '#666';
+          imCtx.lineWidth = side==='right' ? 1.5 : 1.5;
+          imCtx.globalAlpha = 0.8;
+          imCtx.beginPath();
+          if(side==='right'){
+            imCtx.moveTo(int_m2p(cx+INT_CELL), int_m2p(cy));
+            imCtx.lineTo(int_m2p(cx+INT_CELL), int_m2p(cy+INT_CELL));
+          } else {
+            imCtx.moveTo(int_m2p(cx),           int_m2p(cy+INT_CELL));
+            imCtx.lineTo(int_m2p(cx+INT_CELL),  int_m2p(cy+INT_CELL));
+          }
+          imCtx.stroke();
+          imCtx.restore();
+        }
+      }
+    }
+  }
+}
+
+// ── Cursor centering helper ──
+// Returns top-left x,y so that the element is centered on cursor
+function intCenterOn(mx, my, visW, visH){
+  return {
+    x: mx - visW/2,
+    y: my - visH/2
+  };
+}
+
+// ── Furniture drawing ──
+function intDrawFurn(f, ghost){
+  const d = FURN_DEFS[f.type];
+  if(!d) return;
+
+  // Always use original dimensions from FURN_DEFS, rotation handles visual swap
+  const origW = d.w;
+  const origH = d.h;
+  const rot = (f.rot || 0) % 360;
+  const radians = rot * Math.PI / 180;
+
+  // At 90/270°, the visual footprint swaps w/h
+  const isSwapped = (rot === 90 || rot === 270);
+  const visW = isSwapped ? origH : origW;  // visual width on canvas
+  const visH = isSwapped ? origW : origH;  // visual height on canvas
+
+  const pw = int_m2p(visW);
+  const ph = int_m2p(visH);
+
+  // Origin x,y is top-left of the visual bounding box
+  const ocx = int_m2p(f.x) + pw/2;
+  const ocy = int_m2p(f.y) + ph/2;
+
+  // Draw dimensions (always original, before rotation)
+  const dpw = int_m2p(origW);
+  const dph = int_m2p(origH);
+
+  imCtx.save();
+  if(ghost) imCtx.globalAlpha = 0.45;
+
+  // Translate to center, rotate, draw around origin
+  imCtx.translate(ocx, ocy);
+  imCtx.rotate(radians);
+
+  const hx = -dpw/2, hy = -dph/2;
+
+  imCtx.fillStyle = d.color + (ghost ? '44' : '66');
+  if(d.round){
+    imCtx.beginPath();
+    imCtx.ellipse(0, 0, dpw/2, dph/2, 0, 0, Math.PI*2);
+    imCtx.fill();
+    imCtx.strokeStyle = d.color;
+    imCtx.lineWidth = ghost ? 1 : 1.5;
+    if(ghost) imCtx.setLineDash([3,2]);
+    imCtx.stroke();
+  } else {
+    imCtx.fillRect(hx, hy, dpw, dph);
+    imCtx.strokeStyle = d.color;
+    imCtx.lineWidth = ghost ? 1 : 1.5;
+    if(ghost) imCtx.setLineDash([3,2]);
+    imCtx.strokeRect(hx, hy, dpw, dph);
+    imCtx.strokeStyle = d.color + '88';
+    imCtx.lineWidth = 0.5;
+    imCtx.setLineDash([]);
+    if(f.type === 'pat_dublu' || f.type === 'pat_single'){
+      imCtx.strokeRect(hx+2, hy+2, dpw-4, dph*0.28);
+    } else if(f.type === 'canapea'){
+      imCtx.strokeRect(hx+2, hy+2, dpw-4, dph*0.4);
+    }
+  }
+  if(!ghost){
+    imCtx.setLineDash([]);
+    imCtx.fillStyle = d.color;
+    imCtx.globalAlpha = 1;
+    // Counter-rotate text so it's always readable
+    imCtx.rotate(-radians);
+    imCtx.font = Math.min(9, Math.min(pw,ph)*0.38) + 'px Space Mono,monospace';
+    imCtx.textAlign = 'center';
+    imCtx.textBaseline = 'middle';
+    imCtx.fillText(d.label, 0, 0);
+  }
+  imCtx.restore();
+}
+
+function intDrawFurnGhost(pos){
+  const d = FURN_DEFS[intActiveFurn]; if(!d) return;
+  const rot = intCurrentRotation;
+  const isSwapped = (rot === 90 || rot === 270);
+  const visW = isSwapped ? d.h : d.w;
+  const visH = isSwapped ? d.w : d.h;
+  // Center on cursor
+  const {x, y} = intCenterOn(pos.x, pos.y, visW, visH);
+  intDrawFurn({type:intActiveFurn, x, y, w:visW, h:visH, rot}, true);
+}
+
+// ── Door drawing ──
+function intDrawDoor(d, ghost){
+  const W = int_m2p(0.75); // door width
+  const T = int_m2p(INT_CELL); // wall thickness
+  const rot = d.rot || 0;
+  const isSwapped = (rot===90||rot===270);
+  const visW = isSwapped ? INT_CELL : 0.75;
+  const visH = isSwapped ? 0.75 : INT_CELL;
+
+  // Center of bounding box
+  const px = int_m2p(d.x) + int_m2p(visW)/2;
+  const py = int_m2p(d.y) + int_m2p(visH)/2;
+
+  imCtx.save();
+  if(ghost) imCtx.globalAlpha = 0.5;
+  imCtx.translate(px, py);
+  imCtx.rotate(rot * Math.PI/180);
+
+  // Door frame (wall opening)
+  imCtx.strokeStyle = '#c8a060';
+  imCtx.lineWidth = T;
+  imCtx.beginPath();
+  imCtx.moveTo(-W/2, 0);
+  imCtx.lineTo(W/2, 0);
+  imCtx.stroke();
+
+  imCtx.strokeStyle = '#e8c080';
+  imCtx.lineWidth = 1.5;
+  if(ghost) imCtx.setLineDash([3,2]);
+
+  const side = d.side || 'right';
+  const dir  = d.dir  || 'in';
+  const hingeX = side === 'right' ? W/2 : -W/2;
+  const openY  = dir === 'in' ? W : -W;
+
+  // Door leaf
+  imCtx.beginPath();
+  imCtx.moveTo(hingeX, 0);
+  imCtx.lineTo(hingeX, openY);
+  imCtx.stroke();
+
+  // Sweep arc
+  imCtx.setLineDash([3,3]);
+  imCtx.lineWidth = 1;
+  imCtx.strokeStyle = 'rgba(200,160,96,0.5)';
+  imCtx.beginPath();
+  const startA = dir==='in' ? Math.PI/2 : -Math.PI/2;
+  const endA   = side==='right'
+    ? (dir==='in' ? Math.PI : 0)
+    : (dir==='in' ? 0 : Math.PI);
+  imCtx.arc(hingeX, 0, W, startA, endA, side!=='right');
+  imCtx.stroke();
+
+  imCtx.restore();
+}
+
+// ── Window drawing ──
+function intDrawWindow(w, ghost){
+  const ww = w.w || 1.0;
+  const rot = w.rot || 0;
+  const isSwapped = (rot===90||rot===270);
+  const visW = isSwapped ? INT_CELL : ww;
+  const visH = isSwapped ? ww : INT_CELL;
+
+  const WW = int_m2p(ww);        // original width (along window plane)
+  const T  = int_m2p(INT_CELL);  // thickness
+
+  const px = int_m2p(w.x) + int_m2p(visW)/2;
+  const py = int_m2p(w.y) + int_m2p(visH)/2;
+
+  imCtx.save();
+  if(ghost) imCtx.globalAlpha = 0.5;
+  imCtx.translate(px, py);
+  imCtx.rotate(rot * Math.PI/180);
+
+  // Solid background to cover wall beneath
+  imCtx.fillStyle = '#0e1408';
+  imCtx.fillRect(-WW/2, -T/2, WW, T);
+  // Glass fill
+  imCtx.fillStyle = 'rgba(136,204,238,0.55)';
+  imCtx.fillRect(-WW/2+1, -T/2+1, WW-2, T-2);
+  // Frame border
+  imCtx.strokeStyle = '#88ccee';
+  imCtx.lineWidth = 1.5;
+  if(ghost) imCtx.setLineDash([3,2]);
+  imCtx.strokeRect(-WW/2, -T/2, WW, T);
+  imCtx.setLineDash([]);
+  // Center divider
+  imCtx.lineWidth = 0.8;
+  imCtx.strokeStyle = '#aaddf0';
+  imCtx.beginPath(); imCtx.moveTo(0,-T/2); imCtx.lineTo(0,T/2); imCtx.stroke();
+
+  if(!ghost){
+    imCtx.fillStyle = '#88ccee';
+    imCtx.font = '7px Space Mono,monospace';
+    imCtx.textAlign = 'center'; imCtx.textBaseline = 'middle';
+    imCtx.rotate(-rot*Math.PI/180);
+    imCtx.fillText(ww+'m', 0, -T/2-5);
+  }
+  imCtx.restore();
+}
+
+function setIntTool(tool, sub){
+  intActiveTool = tool;
+  if(tool==='room' && sub) intActiveRoom = sub;
+  if(tool==='furn' && sub){ intActiveFurn = sub; intCurrentRotation = 0; }
+  // Update active states
+  document.querySelectorAll('.room-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.furn-btn').forEach(b=>b.classList.remove('active'));
+  if(tool==='room' && sub){
+    document.querySelector(`[data-room="${sub}"]`)?.classList.add('active');
+  }
+  if(tool==='furn' && sub){
+    document.querySelectorAll('.furn-btn').forEach(b=>{
+      if(b.getAttribute('onclick').includes("'"+sub+"'")) b.classList.add('active');
+    });
+  }
+  // Show/hide rotation indicator
+  const ri = document.getElementById('int-rot-indicator');
+  if(ri){ ri.textContent = intCurrentRotation + '°'; }
+  const rp = document.getElementById('int-rot-panel');
+  if(rp){ rp.style.display = (tool==='furn'||tool==='door'||tool==='window') ? 'block' : 'none'; }
+  const dp = document.getElementById('int-dus-panel');
+  if(dp){ dp.style.display = (tool==='furn' && sub==='dus') ? 'block' : 'none'; }
+  // Show/hide door/window config
+  const dc = document.getElementById('door-config');
+  if(dc) dc.style.display = (tool==='door') ? 'block' : 'none';
+  const wc = document.getElementById('window-config');
+  if(wc) wc.style.display = (tool==='window') ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════
+// AUTO-FIT — INTERIOR
+// Canvas resizes in actual pixels to fill the viewport
+// ══════════════════════════════════════════
+const intCanvasViewport = document.getElementById('intCanvasViewport');
+const intCanvasInner    = document.getElementById('intCanvasInner');
+
+function intFitToViewport(){
+  const vw = intCanvasViewport.clientWidth  - 2;
+  const vh = intCanvasViewport.clientHeight - 2;
+  if(vw < 20 || vh < 20) return;
+  const newPX = Math.min(vw / intW, vh / intH);
+  intCW = Math.round(intW * newPX);
+  intCH = Math.round(intH * newPX);
+  intGridC.width = intMainC.width = intCW;
+  intGridC.height = intMainC.height = intCH;
+  intWrap.style.width  = intCW + 'px';
+  intWrap.style.height = intCH + 'px';
+  _intDynPX = newPX;
+  intDrawGrid();
+  intDraw();
+}
+
+new ResizeObserver(() => {
+  if(document.getElementById('tab-interior').classList.contains('active')) intFitToViewport();
+}).observe(intCanvasViewport);
+
+// ── Mouse helpers ──
+function intGetPos(e){
+  const r = intMainC.getBoundingClientRect();
+  return { x: (e.clientX-r.left)/_intDynPX, y: (e.clientY-r.top)/_intDynPX };
+}
+function intInBounds(mx,my){ return mx>=-1&&my>=-1&&mx<=intW+1&&my<=intH+1; }
+function intCellKey(mx,my){
+  const cx=Math.floor(mx/INT_CELL)*INT_CELL;
+  const cy=Math.floor(my/INT_CELL)*INT_CELL;
+  return cx+'_'+cy;
+}
+function intFindDragTarget(mx,my){
+  // Check furniture
+  const f = intState.furniture.find(f=>{
+    const vw=f.w||1, vh=f.h||1;
+    return Math.hypot(mx-f.x-vw/2, my-f.y-vh/2) < Math.max(vw,vh)/2+0.15;
+  });
+  if(f) return f;
+  // Check doors
+  const d = intState.doors.find(d=>{
+    const rot=d.rot||0, isS=(rot===90||rot===270);
+    const vw=isS?INT_CELL:0.75, vh=isS?0.75:INT_CELL;
+    return Math.hypot(mx-d.x-vw/2, my-d.y-vh/2) < Math.max(vw,vh)/2+0.2;
+  });
+  if(d) return d;
+  // Check windows
+  const w = intState.windows.find(w=>{
+    const rot=w.rot||0, isS=(rot===90||rot===270);
+    const ww=w.w||1.0, vw=isS?INT_CELL:ww, vh=isS?ww:INT_CELL;
+    return Math.hypot(mx-w.x-vw/2, my-w.y-vh/2) < Math.max(vw,vh)/2+0.2;
+  });
+  return w || null;
+}
+// Keep old name as alias
+function intFindFurnAt(mx,my){ return intState.furniture.find(f=>{
+  const vw=f.w||1,vh=f.h||1;
+  return Math.hypot(mx-f.x-vw/2,my-f.y-vh/2)<Math.max(vw,vh)/2+0.15;
+}); }
+function intSaveHistory(){ intHistory.push(JSON.stringify(intState)); if(intHistory.length>40)intHistory.shift(); }
+function intEraseAt(mx,my){
+  // Helper: center of element
+  function doorCenter(d){
+    const rot=d.rot||0, isS=(rot===90||rot===270);
+    const vw=isS?INT_CELL:0.75, vh=isS?0.75:INT_CELL;
+    return {x:d.x+vw/2, y:d.y+vh/2, r:Math.max(vw,vh)/2+0.2};
+  }
+  function winCenter(w){
+    const rot=w.rot||0, isS=(rot===90||rot===270);
+    const ww=w.w||1.0, vw=isS?INT_CELL:ww, vh=isS?ww:INT_CELL;
+    return {x:w.x+vw/2, y:w.y+vh/2, r:Math.max(vw,vh)/2+0.2};
+  }
+  function furnCenter(f){
+    const vw=f.w||1, vh=f.h||1;
+    return {x:f.x+vw/2, y:f.y+vh/2, r:Math.max(vw,vh)/2+0.1};
+  }
+  // Find closest door
+  let bestDi=-1, bestDd=99;
+  intState.doors.forEach((d,i)=>{const c=doorCenter(d);const dd=Math.hypot(mx-c.x,my-c.y);if(dd<c.r&&dd<bestDd){bestDd=dd;bestDi=i;}});
+  if(bestDi>=0){ intState.doors.splice(bestDi,1); return; }
+  // Find closest window
+  let bestWi=-1, bestWd=99;
+  intState.windows.forEach((w,i)=>{const c=winCenter(w);const dd=Math.hypot(mx-c.x,my-c.y);if(dd<c.r&&dd<bestWd){bestWd=dd;bestWi=i;}});
+  if(bestWi>=0){ intState.windows.splice(bestWi,1); return; }
+  // Find closest furniture
+  let bestFi=-1, bestFd=99;
+  intState.furniture.forEach((f,i)=>{const c=furnCenter(f);const dd=Math.hypot(mx-c.x,my-c.y);if(dd<c.r&&dd<bestFd){bestFd=dd;bestFi=i;}});
+  if(bestFi>=0){ intState.furniture.splice(bestFi,1); return; }
+  delete intState.cells[intCellKey(mx,my)];
+}
+
+// ── Events ──
+intMainC.addEventListener('mousedown',e=>{
+  if(e.button===2){
+    intRMouseDown=true;
+    const m=intGetPos(e); intSaveHistory(); intEraseAt(m.x,m.y); intDraw(); return;
+  }
+  if(e.button!==0) return;
+  intMouseDown=true; intPaintedCells.clear();
+  const m=intGetPos(e);
+  if(!intInBounds(m.x,m.y)) return;
+
+  if(intActiveTool==='select'){
+    const obj=intFindDragTarget(m.x,m.y);
+    if(obj){
+      intDragObj=obj;
+      intDragOx=m.x-obj.x;
+      intDragOy=m.y-obj.y;
+    }
+    return;
+  }
+  intSaveHistory();
+  intPlaceOrPaint(m.x,m.y);
+  intDraw();
+});
+
+intMainC.addEventListener('mousemove',e=>{
+  const m=intGetPos(e);
+  intGhostPos = m;
+
+  if(intRMouseDown && intInBounds(m.x,m.y)){ intEraseAt(m.x,m.y); }
+
+  if(intDragObj && intMouseDown){
+    intDragObj.x = m.x - intDragOx;
+    intDragObj.y = m.y - intDragOy;
+  }
+
+  if(intMouseDown && !intDragObj && intInBounds(m.x,m.y)){
+    if(intActiveTool==='room' || intActiveTool==='eraser' ||
+       intActiveTool==='wall' || intActiveTool==='door') intPlaceOrPaint(m.x,m.y);
+  }
+
+  intDraw();
+});
+
+intMainC.addEventListener('mouseup',e=>{
+  if(e.button===2){ intRMouseDown=false; return; }
+  intMouseDown=false; intDragObj=null;
+});
+intMainC.addEventListener('mouseleave',()=>{ intGhostPos=null; intRMouseDown=false; intMouseDown=false; intDragObj=null; intDraw(); });
+intMainC.addEventListener('contextmenu',e=>e.preventDefault());
+
+// R key = rotate 90° when furniture tool active
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('tab-interior').classList.contains('active')){
+    if(e.target.matches('input')) return;
+    if(e.key==='r'||e.key==='R'){
+      if(intActiveTool==='furn'||intActiveTool==='door'||intActiveTool==='window'){
+        intCurrentRotation = (intCurrentRotation + 90) % 360;
+        const el = document.getElementById('int-rot-indicator');
+        if(el) el.textContent = intCurrentRotation + '°';
+        intDraw();
+      }
+    }
+    if(e.key==='m'||e.key==='M'){
+      setIntTool('select');
+    }
+  }
+});
+
+// Verifică dacă poziția (mx,my) e în interiorul formei cabānei
+function intIsInCabinShape(mx, my){
+  const cabCells = Object.entries(state.cells).filter(([k,v])=>v==='cabana');
+  if(cabCells.length === 0) return true; // fara forma definita = oriunde
+  const xs = cabCells.map(([k])=>parseFloat(k.split('_')[0]));
+  const ys = cabCells.map(([k])=>parseFloat(k.split('_')[1]));
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  const rangeX = Math.max(...xs) - minX + 0.5;
+  const rangeY = Math.max(...ys) - minY + 0.5;
+  const scaleX = intW / rangeX, scaleY = intH / rangeY;
+  const sc = Math.min(scaleX, scaleY);
+  const offX = (intW - rangeX * sc) / 2;
+  const offY = (intH - rangeY * sc) / 2;
+  // Convertim mx,my înapoi în coordonate celulă cabana
+  const cabX = Math.round(((mx - offX) / sc + minX) * 100) / 100;
+  const cabY = Math.round(((my - offY) / sc + minY) * 100) / 100;
+  // Snap la grila de 0.5m
+  const snappedX = Math.floor(cabX / 0.5) * 0.5;
+  const snappedY = Math.floor(cabY / 0.5) * 0.5;
+  const key = (Math.round(snappedX*100)/100) + '_' + (Math.round(snappedY*100)/100);
+  return cabCells.some(([k])=>k===key);
+}
+
+function intPlaceOrPaint(mx,my){
+  if(!intInBounds(mx,my)) return;
+  // Blochează amplasarea în afara formei cabānei (dacă forma e definită)
+  const cabCellCount = Object.values(state.cells).filter(v=>v==='cabana').length;
+  if(cabCellCount > 0 && intActiveTool !== 'eraser' && !intIsInCabinShape(mx, my)) return;
+  const key = intCellKey(mx,my);
+  if(intActiveTool==='eraser'){ intEraseAt(mx,my); return; }
+  if(intActiveTool==='room'){
+    if(!intPaintedCells.has(key)){
+      intPaintedCells.add(key);
+      intState.cells[key] = intActiveRoom;
+    }
+  } else if(intActiveTool==='wall'){
+    if(!intPaintedCells.has(key)){
+      intPaintedCells.add(key);
+      intState.cells[key] = '__wall__';
+    }
+  } else if(intActiveTool==='door'){
+    const rot = intCurrentRotation;
+    const isSwapped = (rot===90||rot===270);
+    const visW = isSwapped ? INT_CELL : 0.75;
+    const visH = isSwapped ? 0.75 : INT_CELL;
+    const {x,y} = intCenterOn(mx, my, visW, visH);
+    intState.doors.push({id:'id'+Date.now(), x, y,
+      rot, side:intDoorSide, dir:intDoorDir});
+  } else if(intActiveTool==='window'){
+    const ww = intWindowW, wh = INT_CELL;
+    const isSwapped = (intCurrentRotation===90||intCurrentRotation===270);
+    const visW = isSwapped ? wh : ww;
+    const visH = isSwapped ? ww : wh;
+    const {x,y} = intCenterOn(mx, my, visW, visH);
+    intState.windows.push({id:'iw'+Date.now(), x, y,
+      rot:intCurrentRotation, w:intWindowW});
+  } else if(intActiveTool==='furn'){
+    const d=FURN_DEFS[intActiveFurn]; if(!d) return;
+    const rot = intCurrentRotation;
+    const isSwapped = (rot === 90 || rot === 270);
+    const visW = isSwapped ? d.h : d.w;
+    const visH = isSwapped ? d.w : d.h;
+    // Center on cursor
+    const {x, y} = intCenterOn(mx, my, visW, visH);
+    intState.furniture.push({id:'if'+Date.now(), type:intActiveFurn,
+      x, y, w:visW, h:visH, rot});
+  }
+}
+
+// ── Zone detection (flood fill) ──
+function intGetZones(){
+  const visited = new Set();
+  const zones   = []; // {room, cells:[[cx,cy],...]}
+
+  for(const key of Object.keys(intState.cells)){
+    if(visited.has(key)) continue;
+    const room = intState.cells[key];
+    if(room==='__wall__'||room==='__door__') continue;
+
+    // BFS flood fill
+    const queue = [key];
+    const zone  = [];
+    visited.add(key);
+    while(queue.length){
+      const k = queue.shift();
+      zone.push(k);
+      const [cx,cy] = k.split('_').map(Number);
+      const neighbors = [
+        [cx+INT_CELL,cy],[cx-INT_CELL,cy],
+        [cx,cy+INT_CELL],[cx,cy-INT_CELL]
+      ];
+      for(const [nx,ny] of neighbors){
+        // Round to avoid float precision issues
+        const nk = (Math.round(nx*100)/100)+'_'+(Math.round(ny*100)/100);
+        if(!visited.has(nk) && intState.cells[nk]===room){
+          visited.add(nk);
+          queue.push(nk);
+        }
+      }
+    }
+    zones.push({room, cells:zone});
+  }
+  return zones;
+}
+
+// ── Draw room labels ──
+function intDrawRoomLabels(zones, roomCounters){
+  // Build label for each zone: e.g. "Dormitor 1" if >1 dormitor
+  zones.forEach(z=>{
+    // Compute centroid
+    let sx=0,sy=0;
+    z.cells.forEach(k=>{ const [cx,cy]=k.split('_').map(Number); sx+=cx; sy+=cy; });
+    const cx = sx/z.cells.length + INT_CELL/2;
+    const cy = sy/z.cells.length + INT_CELL/2;
+
+    const col = ROOM_COLORS[z.room] || '#aaa';
+    const count = roomCounters[z.room] || 1;
+    const totalForRoom = Object.values(zones).filter(zz=>zz.room===z.room).length;
+    const label = totalForRoom > 1 ? z.room + ' ' + z.zoneIndex : z.room;
+    const area  = (z.cells.length * INT_CELL * INT_CELL).toFixed(1) + ' m²';
+
+    imCtx.save();
+    imCtx.fillStyle = col;
+    imCtx.globalAlpha = 0.9;
+    imCtx.textAlign = 'center';
+    imCtx.textBaseline = 'middle';
+    imCtx.font = 'bold 9px Space Mono,monospace';
+    imCtx.fillText(label, int_m2p(cx), int_m2p(cy)-5);
+    imCtx.font = '8px Space Mono,monospace';
+    imCtx.globalAlpha = 0.7;
+    imCtx.fillText(area, int_m2p(cx), int_m2p(cy)+7);
+    imCtx.restore();
+  });
+}
+
+// ── Stats ──
+function intUpdateStats(){
+  // Suprafața construită reală — din celulele de cabană de pe planul ansamblu
+  const cabCells = Object.entries(state.cells).filter(([k,v])=>v==='cabana');
+  let sConstr;
+  if(cabCells.length > 0){
+    // Numără celulele pline (0.5m × 0.5m fiecare)
+    sConstr = cabCells.length * CELL * CELL;
+  } else {
+    // Fallback: cabana din modul liber sau dimensiuni manuale
+    const cabBuilding = state.buildings.find(b=>b.type==='cabana');
+    sConstr = cabBuilding ? cabBuilding.w * cabBuilding.h : intW * intH;
+  }
+
+  // Suprafata utilă = suprafata construită minus pereți
+  const wallCells = Object.values(intState.cells).filter(r=>r==='__wall__').length;
+  const wallArea  = wallCells * INT_CELL * INT_CELL;
+  const sUtila    = Math.max(0, sConstr - wallArea);
+
+  document.getElementById('int-stat-constr').textContent = sConstr.toFixed(1) + ' m²';
+  document.getElementById('int-stat-utila').textContent  = sUtila.toFixed(1)  + ' m²';
+
+  // Get zones and number duplicates
+  const zones = intGetZones();
+  const roomCount = {};
+  zones.forEach(z=>{
+    roomCount[z.room] = (roomCount[z.room]||0) + 1;
+    z.zoneIndex = roomCount[z.room];
+  });
+
+  // Stats per zone
+  const el = document.getElementById('int-stat-rooms');
+  // Group: if only 1 zone for a room, just show room name
+  const rows = zones.map(z=>{
+    const total = zones.filter(zz=>zz.room===z.room).length;
+    const label = total > 1 ? z.room + ' ' + z.zoneIndex : z.room;
+    const area  = (z.cells.length * INT_CELL * INT_CELL).toFixed(1);
+    const col   = ROOM_COLORS[z.room] || '#888';
+    return `<div class="stat-row">
+      <span class="stat-label" style="color:${col};text-transform:capitalize;">${label}</span>
+      <span class="stat-val" style="color:${col}">${area} m²</span>
+    </div>`;
+  });
+  el.innerHTML = rows.join('');
+
+  // Also draw labels on canvas
+  intDrawRoomLabels(zones, roomCount);
+}
+
+// ── Save / Load ──
+function intUndo(){ if(!intHistory.length)return; intState=JSON.parse(intHistory.pop()); intDraw(); }
+function intClear(){ intSaveHistory(); intState={cells:{},furniture:[],doors:[],windows:[]}; intDraw(); }
+function intSave(){
+  const data={version:1,type:'interior',saved:new Date().toISOString(),cabinW:intW,cabinH:intH,state:intState};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','-');
+  a.download=`cabana-interior-${ts}.json`; a.click(); URL.revokeObjectURL(a.href);
+  const el=document.getElementById('int-save-status'); el.textContent='✓ Salvat!'; setTimeout(()=>el.textContent='',3000);
+}
+function intLoad(event){
+  const file=event.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      intSaveHistory();
+      intState = data.state;
+      if(!intState.doors)   intState.doors   = [];
+      if(!intState.windows) intState.windows = [];
+      if(!intState.furniture) intState.furniture = [];
+      if(data.cabinW){ document.getElementById('int-cw').value=data.cabinW; }
+      if(data.cabinH){ document.getElementById('int-ch').value=data.cabinH; }
+      resizeIntCanvas();
+      const el=document.getElementById('int-save-status');
+      el.textContent='✓ Încărcat'; setTimeout(()=>el.textContent='',3000);
+    }catch(err){ alert('Fișier invalid'); }
+    event.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ── Init interior ──
+resizeIntCanvas();
+
+</script>
+</body>
+</html>
+
